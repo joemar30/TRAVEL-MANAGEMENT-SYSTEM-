@@ -173,7 +173,8 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        // Use 127.0.0.1 instead of localhost to avoid ECONNREFUSED with IPv6 on some systems
+        target: 'http://127.0.0.1:5050',
         changeOrigin: true,
       },
     },

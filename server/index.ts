@@ -6,7 +6,7 @@ import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import { pool } from "./db.js"; // Ensure .js extension for ES modules if needed or config appropriately
+import { prisma, initDB } from "./db.js";
 import { nanoid } from "nanoid";
 
 dotenv.config();
@@ -15,16 +15,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
+  await initDB();
+
   const app = express();
   app.use(express.json());
-  app.use(cors()); // In production, restrict this
+  app.use(cors());
 
   const server = createServer(app);
   const SECRET = process.env.JWT_SECRET || 'wayfarer_secret';
 
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", backendPort: process.env.PORT || 5050 });
+  });
+
   // ──── Auth Endpoints ────
 
-  // Register
   app.post("/api/auth/register", async (req, res) => {
     try {
       const { full_name, email, password, role } = req.body;
@@ -32,13 +37,12 @@ async function startServer() {
       const id = nanoid();
       const hashedPass = await bcrypt.hash(password, 10);
 
-      const [existing] = await pool.query("SELECT id FROM users WHERE email = ?", [email]) as any[];
-      if (existing.length > 0) return res.status(400).json({ error: "Email already exists" });
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (existing) return res.status(400).json({ error: "Email already exists" });
 
-      await pool.query(
-        "INSERT INTO users (id, full_name, email, password, role) VALUES (?, ?, ?, ?, ?)",
-        [id, full_name, email, hashedPass, userRole]
-      );
+      await prisma.user.create({
+        data: { id, full_name, email, password: hashedPass, role: userRole }
+      });
 
       const token = jwt.sign({ id, email, role: userRole }, SECRET);
       res.json({ user: { id, full_name, email, role: userRole }, token });
@@ -47,14 +51,12 @@ async function startServer() {
     }
   });
 
-  // Login
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body;
-      const [users] = await pool.query("SELECT * FROM users WHERE email = ?", [email]) as any[];
-      if (users.length === 0) return res.status(401).json({ error: "User not found" });
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (!user) return res.status(401).json({ error: "User not found" });
 
-      const user = users[0];
       const valid = await bcrypt.compare(password, user.password);
       if (!valid) return res.status(401).json({ error: "Invalid password" });
 
@@ -68,7 +70,6 @@ async function startServer() {
     }
   });
 
-  // ──── Middleware for Authenticated Routes ────
   const authenticateToken = (req: any, res: any, next: any) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -81,11 +82,23 @@ async function startServer() {
     });
   };
 
-  // ──── Trips (Itineraries) Endpoints ────
+  // ──── Trips Endpoints ────
 
   app.get("/api/trips", authenticateToken, async (req: any, res) => {
     try {
-      const [trips] = await pool.query("SELECT * FROM trips WHERE user_id = ?", [req.user.id]);
+      // Find all admin IDs
+      const adminUsers = await prisma.user.findMany({ where: { role: 'admin' }, select: { id: true } });
+      const adminIds = adminUsers.map((u: any) => u.id);
+
+      // Return trips owned by the user OR any admin
+      const trips = await prisma.trip.findMany({ 
+        where: { 
+          OR: [
+            { user_id: req.user.id },
+            { user_id: { in: adminIds } }
+          ]
+        } 
+      });
       res.json(trips);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -96,11 +109,46 @@ async function startServer() {
     try {
       const { destination, startDate, endDate, nights } = req.body;
       const id = nanoid();
-      await pool.query(
-        "INSERT INTO trips (id, user_id, destination, start_date, end_date, nights) VALUES (?, ?, ?, ?, ?, ?)",
-        [id, req.user.id, destination, startDate, endDate, nights]
-      );
+      await prisma.trip.create({
+        data: {
+          id,
+          user_id: req.user.id,
+          destination,
+          start_date: new Date(startDate),
+          end_date: new Date(endDate),
+          nights: Number(nights)
+        }
+      });
       res.json({ id, destination, startDate, endDate, nights });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.patch("/api/trips/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const { destination, startDate, endDate, nights } = req.body;
+      await prisma.trip.updateMany({
+        where: { id: req.params.id, user_id: req.user.id },
+        data: {
+          ...(destination && { destination }),
+          ...(startDate && { start_date: new Date(startDate) }),
+          ...(endDate && { end_date: new Date(endDate) }),
+          ...(nights !== undefined && { nights: Number(nights) })
+        }
+      });
+      res.json({ message: "Trip updated" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete("/api/trips/:id", authenticateToken, async (req: any, res) => {
+    try {
+      await prisma.trip.deleteMany({
+        where: { id: req.params.id, user_id: req.user.id }
+      });
+      res.json({ message: "Trip deleted" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -108,18 +156,13 @@ async function startServer() {
 
   // ──── Bookings Endpoints ────
 
-  // ──── Bookings Endpoints ────
-
   app.get("/api/bookings", authenticateToken, async (req: any, res) => {
     try {
-      // Admin sees everything, client sees only their own
-      let sql = "SELECT * FROM bookings";
-      let params: any[] = [];
+      let whereClause = {};
       if (req.user.role !== 'admin') {
-        sql += " WHERE user_id = ?";
-        params = [req.user.id];
+        whereClause = { user_id: req.user.id };
       }
-      const [bookings] = await pool.query(sql, params);
+      const bookings = await prisma.booking.findMany({ where: whereClause });
       res.json(bookings);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -130,22 +173,36 @@ async function startServer() {
     try {
       const { type, name, route, property, startDate, endDate, price, notes, tripId } = req.body;
       const id = nanoid();
-      await pool.query(
-        "INSERT INTO bookings (id, user_id, trip_id, type, name, route, property, start_date, end_date, price, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in-review', ?)",
-        [id, req.user.id, tripId || null, type, name || null, route || null, property || null, startDate, endDate, price, notes || null]
-      );
+      await prisma.booking.create({
+        data: {
+          id,
+          user_id: req.user.id,
+          trip_id: tripId || null,
+          type,
+          name: name || null,
+          route: route || null,
+          property: property || null,
+          start_date: new Date(startDate),
+          end_date: new Date(endDate),
+          price: Number(price),
+          notes: notes || null,
+          status: 'in-review'
+        }
+      });
       res.json({ id, status: 'in-review' });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  // Update Booking Status (Approval)
   app.patch("/api/bookings/:id", authenticateToken, async (req: any, res) => {
     try {
       if (req.user.role !== 'admin') return res.status(403).json({ error: "Access denied" });
       const { status } = req.body;
-      await pool.query("UPDATE bookings SET status = ? WHERE id = ?", [status, req.params.id]);
+      await prisma.booking.update({
+        where: { id: req.params.id },
+        data: { status }
+      });
       res.json({ status });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -155,7 +212,7 @@ async function startServer() {
   // ──── Expenses Endpoints ────
   app.get("/api/expenses", authenticateToken, async (req: any, res) => {
     try {
-      const [expenses] = await pool.query("SELECT * FROM expenses WHERE user_id = ?", [req.user.id]);
+      const expenses = await prisma.expense.findMany({ where: { user_id: req.user.id } });
       res.json(expenses);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -166,10 +223,17 @@ async function startServer() {
     try {
       const { trip_id, category, amount, date, description } = req.body;
       const id = nanoid();
-      await pool.query(
-        "INSERT INTO expenses (id, user_id, trip_id, category, amount, date, description) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [id, req.user.id, trip_id || null, category, amount, date, description || null]
-      );
+      await prisma.expense.create({
+        data: {
+          id,
+          user_id: req.user.id,
+          trip_id: trip_id || null,
+          category,
+          amount: Number(amount),
+          date: new Date(date),
+          description: description || null
+        }
+      });
       res.json({ id, category, amount, date });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -178,8 +242,13 @@ async function startServer() {
 
   app.patch("/api/expenses/:id", authenticateToken, async (req: any, res) => {
     try {
-      const updates = req.body;
-      await pool.query("UPDATE expenses SET ? WHERE id = ? AND user_id = ?", [updates, req.params.id, req.user.id]);
+      const updates = { ...req.body };
+      if (updates.date) updates.date = new Date(updates.date);
+      if (updates.amount) updates.amount = Number(updates.amount);
+      await prisma.expense.updateMany({
+        where: { id: req.params.id, user_id: req.user.id },
+        data: updates
+      });
       res.json({ message: "Expense updated" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -188,7 +257,9 @@ async function startServer() {
 
   app.delete("/api/expenses/:id", authenticateToken, async (req: any, res) => {
     try {
-      await pool.query("DELETE FROM expenses WHERE id = ? AND user_id = ?", [req.params.id, req.user.id]);
+      await prisma.expense.deleteMany({
+        where: { id: req.params.id, user_id: req.user.id }
+      });
       res.json({ message: "Expense deleted" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -198,7 +269,7 @@ async function startServer() {
   // ──── Travelers Endpoints ────
   app.get("/api/travelers", authenticateToken, async (req: any, res) => {
     try {
-      const [travelers] = await pool.query("SELECT * FROM travelers WHERE user_id = ?", [req.user.id]);
+      const travelers = await prisma.traveler.findMany({ where: { user_id: req.user.id } });
       res.json(travelers);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -209,10 +280,17 @@ async function startServer() {
     try {
       const { name, email, passportNumber, seatPreference, loyaltyNumbers } = req.body;
       const id = nanoid();
-      await pool.query(
-        "INSERT INTO travelers (id, user_id, name, email, passport_number, seat_preference, loyalty_numbers) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [id, req.user.id, name, email, passportNumber || null, seatPreference || null, JSON.stringify(loyaltyNumbers || {})]
-      );
+      await prisma.traveler.create({
+        data: {
+          id,
+          user_id: req.user.id,
+          name,
+          email,
+          passport_number: passportNumber || null,
+          seat_preference: seatPreference || null,
+          loyalty_numbers: loyaltyNumbers ? JSON.stringify(loyaltyNumbers) : null
+        }
+      });
       res.json({ id, name, email });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -221,10 +299,16 @@ async function startServer() {
 
   app.patch("/api/travelers/:id", authenticateToken, async (req: any, res) => {
     try {
-        const updates = req.body;
-        // In MySQL, we need to handle specific mapping for passportNumber/seatPreference/loyaltyNumbers if different from DB column names
-        await pool.query("UPDATE travelers SET ? WHERE id = ? AND user_id = ?", [updates, req.params.id, req.user.id]);
-        res.json({ message: "Traveler updated" });
+      const updates = { ...req.body };
+      if (updates.loyaltyNumbers !== undefined) {
+          updates.loyalty_numbers = JSON.stringify(updates.loyaltyNumbers);
+          delete updates.loyaltyNumbers;
+      }
+      await prisma.traveler.updateMany({
+        where: { id: req.params.id, user_id: req.user.id },
+        data: updates
+      });
+      res.json({ message: "Traveler updated" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -232,7 +316,9 @@ async function startServer() {
 
   app.delete("/api/travelers/:id", authenticateToken, async (req: any, res) => {
     try {
-      await pool.query("DELETE FROM travelers WHERE id = ? AND user_id = ?", [req.params.id, req.user.id]);
+      await prisma.traveler.deleteMany({
+        where: { id: req.params.id, user_id: req.user.id }
+      });
       res.json({ message: "Traveler deleted" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -242,12 +328,13 @@ async function startServer() {
   // ──── Settings Endpoints ────
   app.get("/api/settings", authenticateToken, async (req: any, res) => {
     try {
-      const [settings] = await pool.query("SELECT * FROM user_settings WHERE user_id = ?", [req.user.id]) as any[];
-      if (settings.length === 0) {
-        // Return defaults if none
+      const settings = await prisma.userSettings.findUnique({
+        where: { user_id: req.user.id }
+      });
+      if (!settings) {
         return res.json({ company_name: 'Acme Travel Inc.', currency: 'USD ($)', budget_threshold: 10000 });
       }
-      res.json(settings[0]);
+      res.json(settings);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -255,14 +342,17 @@ async function startServer() {
 
   app.patch("/api/settings", authenticateToken, async (req: any, res) => {
     try {
-        const updates = req.body;
-        // Upsert logic for settings
-        const [existing] = await pool.query("SELECT user_id FROM user_settings WHERE user_id = ?", [req.user.id]) as any[];
-        if (existing.length === 0) {
-            await pool.query("INSERT INTO user_settings SET ?, user_id = ?", [updates, req.user.id]);
-        } else {
-            await pool.query("UPDATE user_settings SET ? WHERE user_id = ?", [updates, req.user.id]);
-        }
+        const updates = { ...req.body };
+        // Ensure numbers and floats are correct if needed, but Prisma will cast some.
+        // Let's rely on Prisma upsert
+        await prisma.userSettings.upsert({
+            where: { user_id: req.user.id },
+            update: updates,
+            create: {
+                user_id: req.user.id,
+                ...updates
+            }
+        });
         res.json({ message: "Settings updated" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -278,7 +368,7 @@ async function startServer() {
   app.use(express.static(staticPath));
 
   app.get("*", (_req, res) => {
-    if (_req.url.startsWith('/api')) return; // Don't serve HTML for API errors
+    if (_req.url.startsWith('/api')) return;
     res.sendFile(path.join(staticPath, "index.html"));
   });
 
@@ -290,4 +380,3 @@ async function startServer() {
 }
 
 startServer().catch(console.error);
-

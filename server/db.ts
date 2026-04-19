@@ -1,38 +1,26 @@
-import mysql from "mysql2/promise";
-import dotenv from "dotenv";
+import { PrismaClient } from '@prisma/client';
 
-dotenv.config();
+export const prisma = new PrismaClient();
 
-// Create pool for better performance with concurrent connections
-export const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASS || '',
-  database: process.env.DB_NAME || 'wayfarer',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
+// Seed initial users on startup
+export async function initDB() {
+  console.log("Initializing database with Prisma...");
+  
+  // Seed the admin user if not exists
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: 'admin@tms.com' }
+  });
 
-// Helper for quick queries
-export async function query(sql: string, params: any[] = []) {
-  try {
-    const [rows] = await pool.execute(sql, params);
-    return rows;
-  } catch (error) {
-    console.error("Database Query Error:", error);
-    throw error;
+  if (!existingAdmin) {
+    await prisma.user.create({
+      data: {
+        id: 'admin-01',
+        full_name: 'TMS Administrator',
+        email: 'admin@tms.com',
+        password: '$2b$10$s7rNylmusHMT1qVuYfSmH.ZEO2T6a0Qf7lPfVoe6N9Z2QAKotY4cq',
+        role: 'admin'
+      }
+    });
+    console.log("Admin seeded.");
   }
 }
-
-// Initial health check
-(async () => {
-    try {
-        const conn = await pool.getConnection();
-        console.log("Connected to MySQL Database via pool");
-        conn.release();
-    } catch (err: any) {
-        console.error("Could not connect to database:", err.message);
-        console.warn("Ensure MySQL is running and database 'wayfarer' is created via phpMyAdmin with db_schema.sql");
-    }
-})();

@@ -44,7 +44,7 @@ export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [location, setLocationPath] = useLocation();
-  const { user, logout, trips, bookings, travelers } = useWayfarerStore();
+  const { user, logout, trips, bookings, travelers, settings, updateSettings, fetchData } = useWayfarerStore();
   const [searchQuery, setSearchQuery] = useState('');
 
   const isAdmin = user?.role === 'admin';
@@ -66,6 +66,7 @@ export function Layout({ children }: LayoutProps) {
     : [
         { label: 'Overview', href: '/', icon: LayoutDashboard, section: 'OVERVIEW' },
         { label: 'My Bookings', href: '/my-bookings', icon: CalendarPlus, section: 'BOOKINGS' },
+        { label: 'Itineraries', href: '/itineraries', icon: MapPin, section: 'TRIPS' },
         { label: 'Profile', href: '/profile', icon: User, section: 'ACCOUNT' },
       ];
 
@@ -185,8 +186,8 @@ export function Layout({ children }: LayoutProps) {
               const Icon = item.icon;
               acc.push(
                 <Link key={item.href} href={item.href}>
-                  <a
-                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
+                  <div
+                    className={`nav-link flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200 cursor-pointer ${
                       isActive(item.href)
                         ? 'bg-black text-white'
                         : 'text-foreground hover:bg-gray-100'
@@ -194,7 +195,7 @@ export function Layout({ children }: LayoutProps) {
                   >
                     {item.label === 'Expenses' ? (
                       <div className={`w-5 h-5 flex items-center justify-center font-bold text-base ${isActive(item.href) ? 'text-white' : 'text-gray-400 group-hover:text-black'}`}>
-                        {CURRENCY_SYMBOLS[useWayfarerStore.getState().settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
+                        {CURRENCY_SYMBOLS[settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
                       </div>
                     ) : (
                       <Icon className="w-5 h-5 flex-shrink-0" />
@@ -202,7 +203,7 @@ export function Layout({ children }: LayoutProps) {
                     {sidebarOpen && (
                       <span className="text-sm font-medium flex-1">{item.label}</span>
                     )}
-                  </a>
+                  </div>
                 </Link>
               );
 
@@ -218,8 +219,8 @@ export function Layout({ children }: LayoutProps) {
                             <Coins className="w-3.5 h-3.5 text-black group-hover:text-white transition-colors" />
                           </div>
                           <select 
-                            value={useWayfarerStore.getState().settings.currency} 
-                            onChange={(e) => useWayfarerStore.getState().updateSettings({ currency: e.target.value })}
+                            value={settings.currency} 
+                            onChange={(e) => updateSettings({ currency: e.target.value })}
                             className="bg-transparent border-none text-[10px] font-bold text-black group-hover:text-white focus:outline-none appearance-none cursor-pointer transition-colors"
                           >
                             <option value="PHP" className="text-black bg-white">PHP (₱)</option>
@@ -239,9 +240,9 @@ export function Layout({ children }: LayoutProps) {
                 );
                 acc.push(
                   <Link key={item.href} href={item.href}>
-                    <a
+                    <div
                       onClick={() => setMobileMenuOpen(false)}
-                      className={`group flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-all duration-300 ${isActive(item.href) ? 'bg-black text-white shadow-lg shadow-black/10' : 'text-zinc-500 hover:bg-zinc-100 hover:text-black'}`}
+                      className={`group flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-all duration-300 cursor-pointer ${isActive(item.href) ? 'bg-black text-white shadow-lg shadow-black/10' : 'text-zinc-500 hover:bg-zinc-100 hover:text-black'}`}
                     >
                       <div className="relative">
                         <Icon className={`w-5 h-5 transition-colors ${isActive(item.href) ? 'text-white' : 'text-zinc-400 group-hover:text-black'}`} />
@@ -250,7 +251,7 @@ export function Layout({ children }: LayoutProps) {
                         )}
                       </div>
                       {sidebarOpen && <span className="nav-label text-[13px] tracking-tight">{item.label}</span>}
-                    </a>
+                    </div>
                   </Link>
                 );
               }
@@ -369,9 +370,9 @@ export function Layout({ children }: LayoutProps) {
             const active = isActive(item.href);
             return (
               <Link key={item.href} href={item.href}>
-                <a
+                <div
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex flex-col items-center gap-1 px-3 py-3 transition-colors ${
+                  className={`flex flex-col items-center gap-1 px-3 py-3 transition-colors cursor-pointer ${
                     active ? 'text-black' : 'text-muted-foreground'
                   }`}
                 >
@@ -380,7 +381,7 @@ export function Layout({ children }: LayoutProps) {
                     {item.label}
                   </span>
                   {active && <div className="w-1 h-1 rounded-full bg-black" />}
-                </a>
+                </div>
               </Link>
             );
           })}

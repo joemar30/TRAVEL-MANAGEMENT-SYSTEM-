@@ -16,7 +16,7 @@ import {
   Clock,
   CheckCircle2,
 } from 'lucide-react';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 
 const CURRENCY_SYMBOLS = {
   'PHP': '₱',
@@ -30,7 +30,8 @@ const CURRENCY_SYMBOLS = {
 };
 
 export default function Dashboard() {
-  const { bookings, trips, expenses, user } = useWayfarerStore();
+  const [_, setLocation] = useLocation();
+  const { bookings, trips, expenses, user, settings } = useWayfarerStore();
   const isAdmin = user?.role === 'admin';
 
   // Calculate metrics
@@ -91,12 +92,10 @@ export default function Dashboard() {
                 Here's an overview of your travel activity.
               </p>
             </div>
-            <Link href="/my-bookings">
-              <Button className="bg-black hover:bg-gray-900 text-white">
-                <Plus className="w-4 h-4 mr-2" />
-                New Reservation
-              </Button>
-            </Link>
+            <Button onClick={() => setLocation('/my-bookings')} className="bg-black hover:bg-gray-900 text-white">
+              <Plus className="w-4 h-4 mr-2" />
+              New Reservation
+            </Button>
           </div>
         </div>
 
@@ -123,7 +122,7 @@ export default function Dashboard() {
               <div>
                 <p className="text-muted-foreground text-sm font-medium">Total Spent</p>
                 <p className="text-3xl font-bold text-foreground mt-2">
-                  {CURRENCY_SYMBOLS[useWayfarerStore.getState().settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
+                  {CURRENCY_SYMBOLS[settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
                   {totalSpend.toLocaleString()}
                 </p>
                 <p className="text-gray-600 text-xs font-medium mt-2 flex items-center gap-1">
@@ -159,8 +158,8 @@ export default function Dashboard() {
             <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: 'Syne' }}>
               My Recent Bookings
             </h2>
-            <Link href="/my-bookings">
-              <a className="text-black text-sm font-medium hover:underline">View all →</a>
+            <Link href="/my-bookings" className="text-black text-sm font-medium hover:underline">
+              View all →
             </Link>
           </div>
           <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -192,7 +191,7 @@ export default function Dashboard() {
                       })}
                     </td>
                     <td className="px-6 py-4 font-semibold text-foreground">
-                      {CURRENCY_SYMBOLS[useWayfarerStore.getState().settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
+                      {CURRENCY_SYMBOLS[settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
                       {booking.price}
                     </td>
                     <td className="px-6 py-4">
@@ -249,24 +248,26 @@ export default function Dashboard() {
             {upcomingTripsSorted.length > 0 ? upcomingTripsSorted.map((trip: typeof trips[0]) => {
               const startDate = new Date(trip.startDate);
               return (
-                <div key={trip.id} className="booking-card">
-                  <div className="flex items-center gap-4">
-                    <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg px-4 py-3 min-w-fit">
-                      <p className="text-xs text-muted-foreground font-medium">
-                        {startDate.toLocaleDateString('en-US', { month: 'short' })}
-                      </p>
-                      <p className="text-2xl font-bold text-black">
-                        {startDate.getDate()}
-                      </p>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-bold text-foreground">{trip.destination}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {trip.nights} nights • {trip.bookingIds.length} bookings
-                      </p>
+                <Link key={trip.id} href="/itineraries">
+                  <div className="booking-card cursor-pointer group hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg px-4 py-3 min-w-fit">
+                        <p className="text-xs text-muted-foreground font-medium">
+                          {startDate.toLocaleDateString('en-US', { month: 'short' })}
+                        </p>
+                        <p className="text-2xl font-bold text-black">
+                          {startDate.getDate()}
+                        </p>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-foreground">{trip.destination}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {trip.nights} nights • {trip.bookingIds.length} bookings
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </Link>
               );
             }) : (
               <p className="text-muted-foreground text-sm col-span-3">No upcoming trips</p>
@@ -308,7 +309,7 @@ export default function Dashboard() {
               <div>
                 <p className="text-muted-foreground text-sm font-medium">Total spend</p>
                 <p className="text-3xl font-bold text-foreground mt-2">
-                  {CURRENCY_SYMBOLS[useWayfarerStore.getState().settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
+                  {CURRENCY_SYMBOLS[settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
                   {totalSpend.toLocaleString()}
                 </p>
                 <p className="text-gray-600 text-xs font-medium mt-2 flex items-center gap-1">
@@ -368,8 +369,8 @@ export default function Dashboard() {
             <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: 'Syne' }}>
               Recent Bookings
             </h2>
-            <Link href="/bookings">
-              <a className="text-black text-sm font-medium hover:underline">View all</a>
+            <Link href="/bookings" className="text-black text-sm font-medium hover:underline">
+              View all
             </Link>
           </div>
 
@@ -390,7 +391,7 @@ export default function Dashboard() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-bold text-foreground">
-                      {CURRENCY_SYMBOLS[useWayfarerStore.getState().settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
+                      {CURRENCY_SYMBOLS[settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
                       {booking.price}
                     </p>
                     <span className={`status-badge ${getStatusColor(booking.status)}`}>
@@ -411,8 +412,8 @@ export default function Dashboard() {
               <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: 'Syne' }}>
                 Upcoming Trips
               </h2>
-            <Link href="/itineraries">
-              <a className="text-black text-sm font-medium hover:underline">Calendar</a>
+            <Link href="/itineraries" className="text-black text-sm font-medium hover:underline">
+              Calendar
             </Link>
             </div>
 
@@ -458,30 +459,22 @@ export default function Dashboard() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <Link href="/bookings?action=new">
-                  <Button className="w-full bg-black hover:bg-gray-900 text-white">
-                    <Plus className="w-4 h-4 mr-2" />
-                    New booking
-                  </Button>
-                </Link>
-                <Link href="/itineraries">
-                  <Button variant="outline" className="w-full">
-                    <Calendar className="w-4 h-4 mr-2" />
-                    View calendar
-                  </Button>
-                </Link>
-                <Link href="/reports">
-                  <Button variant="outline" className="w-full">
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    View reports
-                  </Button>
-                </Link>
-                <Link href="/expenses">
-                  <Button variant="outline" className="w-full">
-                    <FileText className="w-4 h-4 mr-2" />
-                    Manage expenses
-                  </Button>
-                </Link>
+                <Button onClick={() => setLocation('/bookings?action=new')} className="w-full bg-black hover:bg-gray-900 text-white">
+                  <Plus className="w-4 h-4 mr-2" />
+                  New booking
+                </Button>
+                <Button onClick={() => setLocation('/itineraries')} variant="outline" className="w-full">
+                  <Calendar className="w-4 h-4 mr-2" />
+                  View calendar
+                </Button>
+                <Button onClick={() => setLocation('/reports')} variant="outline" className="w-full">
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  View reports
+                </Button>
+                <Button onClick={() => setLocation('/expenses')} variant="outline" className="w-full">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Manage expenses
+                </Button>
               </div>
             </div>
           </div>

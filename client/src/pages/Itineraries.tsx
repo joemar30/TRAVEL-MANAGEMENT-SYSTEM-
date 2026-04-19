@@ -28,7 +28,9 @@ const emptyForm: TripFormData = {
 };
 
 export default function Itineraries() {
-  const { trips, bookings, addTrip, updateTrip, deleteTrip } = useWayfarerStore();
+  const { trips, bookings, addTrip, updateTrip, deleteTrip, user, settings } = useWayfarerStore();
+  const isAdmin = user?.role === 'admin';
+  const myUserId = user?.id || 'guest';
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<TripFormData>(emptyForm);
@@ -103,7 +105,7 @@ export default function Itineraries() {
         endDate: form.endDate,
         nights,
         bookingIds: [],
-        userId: 'user-demo-client',
+        userId: myUserId,
       });
       toast.success('Itinerary created successfully');
     }
@@ -140,9 +142,22 @@ export default function Itineraries() {
       endDate,
       nights,
       bookingIds: [],
-      userId: 'user-demo-client',
+      userId: myUserId,
     });
     toast.success(`Generated a random trip to ${dest}!`);
+  };
+
+  const handlePickTrip = (trip: typeof trips[0]) => {
+    addTrip({
+      id: 'trip-' + Date.now(),
+      destination: trip.destination,
+      startDate: trip.startDate,
+      endDate: trip.endDate,
+      nights: trip.nights,
+      bookingIds: [],
+      userId: myUserId,
+    });
+    toast.success(`${trip.destination} added to your trips!`);
   };
 
   return (
@@ -153,10 +168,12 @@ export default function Itineraries() {
           <p className="text-muted-foreground text-sm">Total itineraries: {trips.length}</p>
         </div>
         <div className="flex gap-3">
-          <Button onClick={generateRandomTrip} variant="outline" className="border-amber-400 text-amber-700 hover:bg-amber-50">
-            <Sparkles className="w-4 h-4 mr-2" />
-            Randomize
-          </Button>
+          {isAdmin && (
+            <Button onClick={generateRandomTrip} variant="outline" className="border-amber-400 text-amber-700 hover:bg-amber-50">
+              <Sparkles className="w-4 h-4 mr-2" />
+              Randomize
+            </Button>
+          )}
           <Button onClick={openAddModal} className="bg-black hover:bg-gray-900 text-white shadow-lg">
             <Plus className="w-4 h-4 mr-2" />
             Create Itinerary
@@ -182,7 +199,7 @@ export default function Itineraries() {
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
                     {trip.nights} nights • {tripBookings.length} bookings
-                    {totalCost > 0 && ` • ${CURRENCY_SYMBOLS[useWayfarerStore.getState().settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}${totalCost.toLocaleString()}`}
+                    {totalCost > 0 && ` • ${CURRENCY_SYMBOLS[settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}${totalCost.toLocaleString()}`}
                   </p>
                 </div>
                 <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg px-3 py-2 min-w-fit">
@@ -219,7 +236,7 @@ export default function Itineraries() {
                           {booking.name || booking.property}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {CURRENCY_SYMBOLS[useWayfarerStore.getState().settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
+                          {CURRENCY_SYMBOLS[settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
                           {booking.price}
                         </p>
                       </div>
@@ -237,26 +254,38 @@ export default function Itineraries() {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => openEditModal(trip.id)}>
-                  <Edit className="w-4 h-4 mr-2" />
-                  Edit
-                </Button>
-                {showDeleteConfirm === trip.id ? (
-                  <div className="flex gap-1">
-                    <Button variant="destructive" size="sm" onClick={() => handleDelete(trip.id)}>
-                      Confirm
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(null)}>
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <Button variant="outline" onClick={() => setShowDeleteConfirm(trip.id)}>
-                    <Trash2 className="w-4 h-4" />
+              {(isAdmin || trip.userId === myUserId) ? (
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => openEditModal(trip.id)}>
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit
                   </Button>
-                )}
-              </div>
+                  {showDeleteConfirm === trip.id ? (
+                    <div className="flex gap-1">
+                      <Button variant="destructive" size="sm" onClick={() => handleDelete(trip.id)}>
+                        Confirm
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(null)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button variant="outline" onClick={() => setShowDeleteConfirm(trip.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="flex gap-2 mt-4 pt-4 border-t border-border">
+                  <Button 
+                    className="w-full bg-black hover:bg-gray-900 text-white shadow-md active:scale-[0.98] transition-all"
+                    onClick={() => handlePickTrip(trip)}
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Pick this Itinerary
+                  </Button>
+                </div>
+              )}
             </div>
           );
         })}

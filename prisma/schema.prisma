@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String     @id @default(uuid())
+  full_name  String
+  email      String     @unique
+  password   String
+  role       String     @default("client") // 'client', 'admin'
+  avatar     String?
+  created_at DateTime   @default(now())
+
+  trips      Trip[]
+  bookings   Booking[]
+  expenses   Expense[]
+  travelers  Traveler[]
+  settings   UserSettings?
+  
+  @@map("users")
+}
+
+model Trip {
+  id          String   @id @default(uuid())
+  user_id     String
+  destination String
+  start_date  DateTime
+  end_date    DateTime
+  nights      Int
+  created_at  DateTime @default(now())
+
+  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  bookings    Booking[]
+  expenses    Expense[]
+  
+  @@map("trips")
+}
+
+model Booking {
+  id         String   @id @default(uuid())
+  user_id    String
+  trip_id    String?
+  type       String   // 'flight', 'hotel', 'car'
+  name       String?
+  route      String?
+  property   String?
+  start_date DateTime
+  end_date   DateTime
+  price      Float
+  status     String   @default("pending") // 'pending', 'in-review', 'confirmed', 'cancelled'
+  notes      String?
+  created_at DateTime @default(now())
+
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  trip       Trip?    @relation(fields: [trip_id], references: [id], onDelete: SetNull)
+  
+  @@map("bookings")
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  user_id     String
+  trip_id     String?
+  category    String
+  amount      Float
+  date        DateTime
+  description String?
+  created_at  DateTime @default(now())
+
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  trip        Trip?    @relation(fields: [trip_id], references: [id], onDelete: SetNull)
+  
+  @@map("expenses")
+}
+
+model Traveler {
+  id              String   @id @default(uuid())
+  user_id         String
+  name            String
+  email           String
+  passport_number String?
+  seat_preference String?
+  loyalty_numbers String? // JSON stored as string
+  created_at      DateTime @default(now())
+
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@map("travelers")
+}
+
+model UserSettings {
+  user_id          String   @id
+  company_name     String   @default("Acme Travel Inc.")
+  currency         String   @default("USD ($)")
+  budget_threshold Float    @default(10000.00)
+  notifications    String?  // JSON
+  theme            String   @default("light") // 'light', 'dark'
+  last_updated     DateTime @default(now()) @updatedAt
+
+  user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@map("user_settings")
+}

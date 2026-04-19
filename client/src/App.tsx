@@ -70,7 +70,7 @@ function Router() {
         </ProtectedRoute>
       )} />
       <Route path="/itineraries" component={() => (
-        <ProtectedRoute allowedRoles={['admin']}>
+        <ProtectedRoute allowedRoles={['admin', 'client']}>
           <Layout><Itineraries /></Layout>
         </ProtectedRoute>
       )} />
