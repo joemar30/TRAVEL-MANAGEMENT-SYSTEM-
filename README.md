@@ -1,15 +1,12 @@
-Travel Travel Booking System
-==================================
+Travel Booking System
 
-Travel is a professional travel management platform designed to streamline the process of managing bookings, itineraries, and travel expenses through a modern and intuitive interface.
+Wayfarer is a professional travel management platform designed to streamline the process of managing bookings, itineraries, and travel expenses through a modern and intuitive interface.
 
-Overview
---------
+## Overview
 
 This project focuses on providing a comprehensive suite of tools for travelers to organize their journeys. It features a responsive dashboard, detailed booking management, and integrated trip planning capabilities.
 
-Key Features
-------------
+## Key Features
 
 - Dashboard
   Detailed overview of active bookings, total profit, and upcoming trip schedules with visual trends and quick actions.
@@ -29,8 +26,7 @@ Key Features
 - Analytics and Reports
   Visual breakdowns of profit patterns, booking distributions, and travel frequency to help optimize travel budgets.
 
-Frontend Technology Stack
--------------------------
+## Frontend Technology Stack
 
 - React 19
   Using the latest React features for building a dynamic and responsive user interface.
@@ -53,20 +49,18 @@ Frontend Technology Stack
 - Wouter
   Minimalist and fast routing solution for seamless navigation between pages.
 
-Project Structure
------------------
+## Project Structure
 
 client/
-  src/
-    pages/           - Individual page views for each application section
-    components/      - Reusable UI elements and interface blocks
-    lib/             - Client-side utilities and global state stores
-    hooks/           - Custom React hooks for shared logic
-    App.tsx          - Main routing and layout configuration
-  public/            - Static assets and image files
+src/
+pages/ - Individual page views for each application section
+components/ - Reusable UI elements and interface blocks
+lib/ - Client-side utilities and global state stores
+hooks/ - Custom React hooks for shared logic
+App.tsx - Main routing and layout configuration
+public/ - Static assets and image files
 
-Getting Started
----------------
+## Getting Started
 
 1. Install dependencies
    Using pnpm to manage project packages:
@@ -78,7 +72,7 @@ Getting Started
 
 The application will be accessible at http://localhost:3000
 
-License
--------
+## License
 
 This project is licensed under the MIT License.
+~
