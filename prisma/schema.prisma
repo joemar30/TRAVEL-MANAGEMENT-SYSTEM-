@@ -8,13 +8,17 @@ datasource db {
 }
 
 model User {
-  id         String     @id @default(uuid())
-  full_name  String
-  email      String     @unique
-  password   String
-  role       String     @default("client") // 'client', 'admin'
-  avatar     String?
-  created_at DateTime   @default(now())
+  id                String     @id @default(uuid())
+  full_name         String
+  email             String     @unique
+  password          String
+  role              String     @default("client") // 'client', 'admin'
+  avatar            String?
+  phone             String?
+  company           String?
+  security_question String?
+  security_answer   String?
+  created_at        DateTime   @default(now())
 
   trips      Trip[]
   bookings   Booking[]
@@ -52,9 +56,11 @@ model Booking {
   start_date DateTime
   end_date   DateTime
   price      Float
-  status     String   @default("pending") // 'pending', 'in-review', 'confirmed', 'cancelled'
-  notes      String?
-  created_at DateTime @default(now())
+  status             String   @default("pending") // 'pending', 'in-review', 'confirmed', 'cancelled'
+  admin_comment      String?
+  status_updated_at  DateTime?
+  notes              String?
+  created_at         DateTime @default(now())
 
   user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   trip       Trip?    @relation(fields: [trip_id], references: [id], onDelete: SetNull)
@@ -96,7 +102,7 @@ model Traveler {
 model UserSettings {
   user_id          String   @id
   company_name     String   @default("Acme Travel Inc.")
-  currency         String   @default("USD ($)")
+  currency         String   @default("USD")
   budget_threshold Float    @default(10000.00)
   notifications    String?  // JSON
   theme            String   @default("light") // 'light', 'dark'

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { useWayfarerStore } from '@/lib/store';
+import { useTravelStore } from '@/lib/store';
 import {
   LayoutDashboard,
   Plane,
   MapPin,
   Users,
-  DollarSign,
+  TrendingUp,
   BarChart3,
   Settings,
   Menu,
@@ -44,7 +44,7 @@ export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [location, setLocationPath] = useLocation();
-  const { user, logout, trips, bookings, travelers, settings, updateSettings, fetchData } = useWayfarerStore();
+  const { user, logout, trips, bookings, travelers, settings, updateSettings, fetchData } = useTravelStore();
   const [searchQuery, setSearchQuery] = useState('');
 
   const isAdmin = user?.role === 'admin';
@@ -57,7 +57,7 @@ export function Layout({ children }: LayoutProps) {
         { label: 'Bookings', href: '/bookings', icon: Plane, section: 'MANAGEMENT' },
         { label: 'Itineraries', href: '/itineraries', icon: MapPin, section: 'MANAGEMENT' },
         { label: 'Travelers', href: '/travelers', icon: Users, section: 'MANAGEMENT' },
-        { label: 'Expenses', href: '/expenses', icon: DollarSign, section: 'MANAGEMENT' },
+        { label: 'Profit', href: '/expenses', icon: TrendingUp, section: 'MANAGEMENT' },
         { label: 'Reports', href: '/reports', icon: BarChart3, section: 'ANALYTICS' },
         { label: 'Approvals', href: '/approvals', icon: FileText, section: 'ADMIN' },
         { label: 'Profile', href: '/profile', icon: User, section: 'ACCOUNT' },
@@ -66,6 +66,7 @@ export function Layout({ children }: LayoutProps) {
     : [
         { label: 'Overview', href: '/', icon: LayoutDashboard, section: 'OVERVIEW' },
         { label: 'My Bookings', href: '/my-bookings', icon: CalendarPlus, section: 'BOOKINGS' },
+        { label: 'Requests', href: '/approvals', icon: FileText, section: 'BOOKINGS' },
         { label: 'Itineraries', href: '/itineraries', icon: MapPin, section: 'TRIPS' },
         { label: 'Profile', href: '/profile', icon: User, section: 'ACCOUNT' },
       ];
@@ -107,7 +108,7 @@ export function Layout({ children }: LayoutProps) {
       '/bookings': 'Bookings',
       '/itineraries': 'Itineraries',
       '/travelers': 'Travelers',
-      '/expenses': 'Expenses',
+      '/expenses': 'Profit',
       '/reports': 'Reports',
       '/approvals': 'Approvals',
       '/profile': 'Profile',
@@ -140,30 +141,16 @@ export function Layout({ children }: LayoutProps) {
             <Link href="/">
               <div className="flex items-center gap-3 cursor-pointer">
                 <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center overflow-hidden">
-                  <img src="/favicon-tms.png" className="w-full h-full object-cover rounded-full" alt="TMS" />
+                  <img src="/favicon-tms.png" className="w-full h-full object-cover rounded-full" alt="TRAVEL" />
                 </div>
                 {sidebarOpen && (
                   <span className="font-bold text-sidebar-foreground" style={{ fontFamily: 'Syne' }}>
-                    TMS
+                    TRAVEL
                   </span>
                 )}
               </div>
             </Link>
           </div>
-
-          {/* Role Badge */}
-          {sidebarOpen && user && (
-            <div className="px-4 pt-4">
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider ${
-                isAdmin
-                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                  : 'bg-blue-100 text-blue-800 border border-blue-200'
-              }`}>
-                {isAdmin ? <Shield className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
-                {isAdmin ? 'Admin Portal' : 'Client Portal'}
-              </div>
-            </div>
-          )}
 
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-1">
@@ -193,10 +180,8 @@ export function Layout({ children }: LayoutProps) {
                         : 'text-foreground hover:bg-gray-100'
                     }`}
                   >
-                    {item.label === 'Expenses' ? (
-                      <div className={`w-5 h-5 flex items-center justify-center font-bold text-base ${isActive(item.href) ? 'text-white' : 'text-gray-400 group-hover:text-black'}`}>
-                        {CURRENCY_SYMBOLS[settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
-                      </div>
+                    {false ? (
+                      <div />
                     ) : (
                       <Icon className="w-5 h-5 flex-shrink-0" />
                     )}
@@ -212,26 +197,29 @@ export function Layout({ children }: LayoutProps) {
                 acc.pop(); // Temporarily remove profile to insert currency before it
                 acc.push(
                   <div key="currency-selector" className="px-2 py-2">
-                    <div className="px-4 py-2 bg-white rounded-lg group cursor-pointer transition-all hover:bg-black active:scale-[0.98] shadow-sm">
-                      <div className="flex items-center justify-between gap-2 overflow-hidden">
+                    <div className="px-4 py-2 bg-white rounded-lg group cursor-pointer transition-all hover:bg-black active:scale-[0.98] shadow-sm relative">
+                      <select 
+                        value={settings.currency.split(' ')[0]} 
+                        onChange={(e) => updateSettings({ currency: e.target.value })}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      >
+                        <option value="PHP" className="text-black bg-white">PHP (₱)</option>
+                        <option value="USD" className="text-black bg-white">USD ($)</option>
+                        <option value="EUR" className="text-black bg-white">EUR (€)</option>
+                        <option value="GBP" className="text-black bg-white">GBP (£)</option>
+                        <option value="JPY" className="text-black bg-white">JPY (¥)</option>
+                        <option value="KRW" className="text-black bg-white">KRW (₩)</option>
+                        <option value="SGD" className="text-black bg-white">SGD (S$)</option>
+                        <option value="BTC" className="text-black bg-white">BTC (₿)</option>
+                      </select>
+                      <div className="flex items-center justify-between gap-2 overflow-hidden pointer-events-none">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 bg-gray-100 rounded flex items-center justify-center group-hover:bg-white/20 transition-colors">
                             <Coins className="w-3.5 h-3.5 text-black group-hover:text-white transition-colors" />
                           </div>
-                          <select 
-                            value={settings.currency} 
-                            onChange={(e) => updateSettings({ currency: e.target.value })}
-                            className="bg-transparent border-none text-[10px] font-bold text-black group-hover:text-white focus:outline-none appearance-none cursor-pointer transition-colors"
-                          >
-                            <option value="PHP" className="text-black bg-white">PHP (₱)</option>
-                            <option value="USD" className="text-black bg-white">USD ($)</option>
-                            <option value="EUR" className="text-black bg-white">EUR (€)</option>
-                            <option value="GBP" className="text-black bg-white">GBP (£)</option>
-                            <option value="JPY" className="text-black bg-white">JPY (¥)</option>
-                            <option value="KRW" className="text-black bg-white">KRW (₩)</option>
-                            <option value="SGD" className="text-black bg-white">SGD (S$)</option>
-                            <option value="BTC" className="text-black bg-white">BTC (₿)</option>
-                          </select>
+                          <span className="text-[10px] font-bold text-black group-hover:text-white transition-colors">
+                            {settings.currency.split(' ')[0]} ({CURRENCY_SYMBOLS[settings.currency.split(' ')[0] as keyof typeof CURRENCY_SYMBOLS] || '$'})
+                          </span>
                         </div>
                         <ChevronRight className="w-3 h-3 text-gray-400 group-hover:text-white group-hover:translate-x-1 transition-all" />
                       </div>
@@ -264,8 +252,12 @@ export function Layout({ children }: LayoutProps) {
           <div className="p-4 border-t border-sidebar-border space-y-3">
             {sidebarOpen && user && (
               <div className="px-4 py-3 bg-sidebar-accent/20 rounded-xl flex items-center gap-3">
-                <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                  {user.full_name.charAt(0).toUpperCase()}
+                <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
+                  {user.avatar ? (
+                    <img src={user.avatar} className="w-full h-full object-cover" alt="Profile" />
+                  ) : (
+                    user.full_name.charAt(0).toUpperCase()
+                  )}
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-sidebar-foreground truncate" style={{ fontFamily: 'Syne' }}>{user.full_name}</p>

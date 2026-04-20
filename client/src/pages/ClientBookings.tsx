@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useWayfarerStore, BookingType } from '@/lib/store';
+import { useTravelStore, BookingType } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import {
   Plane,
@@ -523,8 +523,66 @@ function LocationSuggestions({ searchTerm, onSelect }: { searchTerm: string; onS
   );
 }
 
+function RouteSuggestions({ searchTerm, onSelect }: { searchTerm: string; onSelect: (val: string) => void }) {
+  if (!searchTerm || searchTerm.length < 2) return null;
+  
+  const searchLower = searchTerm.toLowerCase();
+  
+  const keywordMatch = (r: typeof ROUTES[0]) => {
+    const keywords = [r.origin, r.originCode, r.destination, r.destCode].map(s => s.toLowerCase());
+    
+    // Country shorthands manually added for autocomplete testing
+    if (['jpn', 'japan', 'tokyo', 'osaka'].includes(searchLower)) {
+      if (keywords.includes('nrt') || keywords.includes('hnd') || keywords.includes('kix') || keywords.includes('tokyo haneda') || keywords.includes('tokyo narita') || keywords.includes('osaka')) return true;
+    }
+    if (['ph', 'phl', 'philippines', 'manila', 'cebu'].includes(searchLower)) {
+      if (keywords.includes('mnl') || keywords.includes('ceb') || keywords.includes('manila') || keywords.includes('cebu')) return true;
+    }
+    if (['sg', 'sgp', 'singapore'].includes(searchLower)) {
+      if (keywords.includes('sin') || keywords.includes('singapore')) return true;
+    }
+    if (['ae', 'uae', 'dubai'].includes(searchLower)) {
+      if (keywords.includes('dxb') || keywords.includes('dubai')) return true;
+    }
+    if (['kr', 'kor', 'korea', 'seoul'].includes(searchLower)) {
+      if (keywords.includes('icn') || keywords.includes('seoul incheon')) return true;
+    }
+    return keywords.some(k => k.includes(searchLower));
+  };
+  
+  const filtered = ROUTES.filter(keywordMatch).slice(0, 5);
+
+  if (filtered.length === 0) return null;
+
+  return (
+    <div className="absolute z-[100] w-full mt-1 bg-white border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+      {filtered.map((r, i) => {
+        const routeLabel = `${r.originCode} → ${r.destCode}`;
+        const routeFull = `${r.origin} to ${r.destination}`;
+        return (
+          <button
+            key={i}
+            onClick={() => onSelect(routeLabel)}
+            className="w-full px-4 py-3 text-left hover:bg-zinc-50 flex items-center gap-3 transition-colors border-b border-zinc-50 last:border-0"
+          >
+            <div className="w-8 h-8 bg-zinc-100 rounded-lg flex items-center justify-center">
+              <Plane className="w-4 h-4 text-zinc-500" />
+            </div>
+            <div>
+              <span className="block font-bold text-foreground text-sm">{routeLabel}</span>
+              <span className="block text-xs text-muted-foreground">{routeFull}</span>
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  );
+}
+
+import { ApprovalTracker } from '@/components/ApprovalTracker';
+
 export default function ClientBookings() {
-  const { bookings, trips, addBooking, user } = useWayfarerStore();
+  const { bookings, trips, addBooking, user } = useTravelStore();
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<BookingRequestForm>(emptyForm);
   const [activeFilter, setActiveFilter] = useState<string>('all');
@@ -532,9 +590,10 @@ export default function ClientBookings() {
   const [loading, setLoading] = useState(false);
   const [showHotelMap, setShowHotelMap] = useState(false);
   const [activeSearchField, setActiveSearchField] = useState<string | null>(null);
+  const [trackingBookingId, setTrackingBookingId] = useState<string | null>(null);
 
-  // Client only sees their own bookings
-  const myBookings = bookings.filter((b) => b.userId === user?.id || b.userId === 'user-demo-client');
+  // Backend already filters bookings by user_id for clients, returns all for admin
+  const myBookings = bookings;
 
   const filteredBookings = myBookings.filter((b) => {
     if (activeFilter === 'all') return true;
@@ -821,6 +880,19 @@ export default function ClientBookings() {
                       <span className="font-medium text-foreground">Note:</span> {booking.notes}
                     </p>
                   )}
+
+                  {/* Tracking Button */}
+                  <div className="mt-4 pt-4 border-t border-border flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTrackingBookingId(booking.id)}
+                      className="h-8 text-[11px] font-bold uppercase tracking-widest border-black hover:bg-black hover:text-white transition-all"
+                    >
+                      <Navigation className="w-3.5 h-3.5 mr-2" />
+                      Track Status
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -845,6 +917,30 @@ export default function ClientBookings() {
           </div>
         )}
       </div>
+
+      {/* ──── Tracking Modal ──── */}
+      {trackingBookingId && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+           <motion.div 
+             initial={{ opacity: 0, scale: 0.95, y: 20 }}
+             animate={{ opacity: 1, scale: 1, y: 0 }}
+             className="bg-white border border-border rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl"
+           >
+              <div className="p-6 border-b border-zinc-100 flex items-center justify-between sticky top-0 bg-white z-10">
+                 <h2 className="text-xl font-bold text-zinc-900 uppercase" style={{ fontFamily: 'Syne' }}>Reservation Tracker</h2>
+                 <Button variant="ghost" size="sm" onClick={() => setTrackingBookingId(null)}>
+                    <X className="w-5 h-5" />
+                 </Button>
+              </div>
+              <div className="p-6">
+                 {(() => {
+                    const booking = bookings.find(b => b.id === trackingBookingId);
+                    return booking ? <ApprovalTracker booking={booking} /> : null;
+                 })()}
+              </div>
+           </motion.div>
+        </div>
+      )}
 
       {/* ──── New Reservation Modal ──── */}
       {showModal && (
@@ -937,7 +1033,7 @@ export default function ClientBookings() {
                     </div>
                   </div>
 
-                  {showHotelMap && form.property && (
+                  {showHotelMap && form.property.length > 3 && (
                     <motion.div 
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
@@ -953,7 +1049,7 @@ export default function ClientBookings() {
                         src={`https://maps.google.com/maps?q=${encodeURIComponent(form.property + ' hotels')}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
                       ></iframe>
                       <div className="p-2 text-[10px] text-muted-foreground bg-white text-center italic">
-                        Viewing live location for "{form.property}"
+                        Live Map Preview
                       </div>
                     </motion.div>
                   )}
@@ -988,13 +1084,28 @@ export default function ClientBookings() {
                   {form.type === 'flight' && (
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-2">Flight Route</label>
-                      <input
-                        type="text"
-                        value={form.route}
-                        onChange={(e) => setForm({ ...form, route: e.target.value })}
-                        placeholder="e.g. MNL → NRT"
-                        className="w-full px-4 py-2.5 bg-input border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-black transition-all"
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={form.route}
+                          onFocus={() => setActiveSearchField('route')}
+                          onChange={(e) => {
+                            setForm({ ...form, route: e.target.value });
+                            setActiveSearchField('route');
+                          }}
+                          placeholder="e.g. MNL → NRT"
+                          className="w-full px-4 py-2.5 bg-input border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-black transition-all"
+                        />
+                        {activeSearchField === 'route' && (
+                          <RouteSuggestions 
+                            searchTerm={form.route} 
+                            onSelect={(val) => {
+                              setForm({ ...form, route: val });
+                              setActiveSearchField(null);
+                            }}
+                          />
+                        )}
+                      </div>
                     </div>
                   )}
                 </>
@@ -1029,7 +1140,7 @@ export default function ClientBookings() {
               {/* Estimated Budget */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Estimated Budget ({CURRENCY_SYMBOLS[useWayfarerStore.getState().settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'})
+                  Estimated Budget ({CURRENCY_SYMBOLS[useTravelStore.getState().settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'})
                 </label>
                 <input
                   type="number"
@@ -1040,22 +1151,7 @@ export default function ClientBookings() {
                 />
               </div>
 
-              {/* Link to Trip (optional) */}
-              {trips.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Link to Trip (optional)</label>
-                  <select
-                    value={form.tripId}
-                    onChange={(e) => setForm({ ...form, tripId: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-input border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-black transition-all"
-                  >
-                    <option value="">No specific trip</option>
-                    {trips.map((trip) => (
-                      <option key={trip.id} value={trip.id}>{trip.destination} ({new Date(trip.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+
 
               {/* Special Requests */}
               <div>

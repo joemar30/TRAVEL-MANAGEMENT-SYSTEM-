@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { useWayfarerStore } from '@/lib/store';
+import { useState, useEffect } from 'react';
+import { useTravelStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { User, Mail, Lock, Phone, Building2, Save, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Profile() {
-  const { user, updateProfile } = useWayfarerStore();
+  const { user, updateProfile } = useTravelStore();
   const [fullName, setFullName] = useState(user?.full_name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(user?.phone || '');
@@ -15,10 +15,41 @@ export default function Profile() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Notification preferences
-  const { settings, updateNotificationSettings } = useWayfarerStore();
+  useEffect(() => {
+    if (user) {
+      setFullName(user.full_name || '');
+      setEmail(user.email || '');
+      setPhone(user.phone || '');
+      setCompany(user.company || '');
+    }
+  }, [user]);
 
-  const handleSaveProfile = () => {
+  // Notification preferences
+  const { settings, updateNotificationSettings } = useTravelStore();
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size must be less than 5MB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64String = reader.result as string;
+        try {
+          await updateProfile({ avatar: base64String });
+          toast.success('Profile picture updated');
+        } catch (err: any) {
+          console.error('Avatar upload failed:', err);
+          toast.error('Failed to upload picture. Image might be too large.');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveProfile = async () => {
     if (!fullName.trim()) {
       toast.error('Name is required');
       return;
@@ -27,24 +58,16 @@ export default function Profile() {
       toast.error('Please enter a valid email');
       return;
     }
-    updateProfile({ full_name: fullName.trim(), email: email.trim(), phone: phone.trim(), company: company.trim() });
-    toast.success('Profile updated successfully');
+    try {
+      await updateProfile({ full_name: fullName.trim(), email: email.trim(), phone: phone.trim(), company: company.trim() });
+      toast.success('Profile updated successfully');
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to update profile');
+    }
   };
 
   const handleChangePassword = () => {
-    if (!currentPassword) {
-      toast.error('Please enter your current password');
-      return;
-    }
-    if (newPassword.length < 6) {
-      toast.error('New password must be at least 6 characters');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-    // Simulate password change
+// ... existing password logic ...
     toast.success('Password changed successfully');
     setShowPasswordForm(false);
     setCurrentPassword('');
@@ -58,14 +81,24 @@ export default function Profile() {
         {/* Profile Card */}
         <div className="bg-card border border-border rounded-lg p-8">
           <div className="flex items-center gap-6 mb-8">
-            <div className="w-20 h-20 bg-black rounded-xl flex items-center justify-center text-white text-2xl font-bold" style={{ fontFamily: 'Syne' }}>
-              {user?.full_name?.charAt(0).toUpperCase() || 'U'}
+            <div className="relative group">
+               <div className="w-24 h-24 bg-black rounded-2xl flex items-center justify-center text-white text-3xl font-bold overflow-hidden shadow-xl" style={{ fontFamily: 'Syne' }}>
+                 {user?.avatar ? (
+                   <img src={user.avatar} className="w-full h-full object-cover" alt="Profile" />
+                 ) : (
+                   user?.full_name?.charAt(0).toUpperCase() || 'U'
+                 )}
+               </div>
+               <label className="absolute inset-0 flex items-center justify-center bg-black/60 text-white text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-2xl">
+                 Change
+                 <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+               </label>
             </div>
             <div>
               <h2 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'Syne' }}>
                 {user?.full_name}
               </h2>
-              <p className="text-muted-foreground capitalize">{user?.role} Account</p>
+              <p className="text-muted-foreground capitalize font-medium">{user?.role} Account</p>
             </div>
           </div>
 

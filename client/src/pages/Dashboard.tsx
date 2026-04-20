@@ -1,4 +1,4 @@
-import { useWayfarerStore } from '@/lib/store';
+import { useTravelStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import {
   TrendingUp,
@@ -31,18 +31,19 @@ const CURRENCY_SYMBOLS = {
 
 export default function Dashboard() {
   const [_, setLocation] = useLocation();
-  const { bookings, trips, expenses, user, settings } = useWayfarerStore();
+  const { bookings, trips, expenses, user, settings } = useTravelStore();
   const isAdmin = user?.role === 'admin';
 
   // Calculate metrics
   const activeBookings = bookings.filter((b) => b.status !== 'cancelled').length;
-  const totalSpend = bookings.reduce((sum, b) => sum + b.price, 0) + expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalProfit = bookings.reduce((sum, b) => sum + b.price, 0) + expenses.reduce((sum, e) => sum + e.amount, 0);
   const upcomingTrips = trips.filter((t) => new Date(t.startDate) > new Date()).length;
   const pendingApprovals = bookings.filter((b) => b.status === 'in-review').length;
   const confirmedBookings = bookings.filter((b) => b.status === 'confirmed').length;
 
   // Get recent bookings
-  const recentBookings = bookings.slice(-5).reverse() as typeof bookings;
+  // Get recent bookings (Backend already sorts desc, so slice(0, 5) gets the newest)
+  const recentBookings = bookings.slice(0, 5) as typeof bookings;
 
   // Get upcoming trips sorted by date
   const upcomingTripsSorted = trips
@@ -120,10 +121,10 @@ export default function Dashboard() {
           <div className="stat-card">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-muted-foreground text-sm font-medium">Total Spent</p>
+                <p className="text-muted-foreground text-sm font-medium">Total Expenses</p>
                 <p className="text-3xl font-bold text-foreground mt-2">
                   {CURRENCY_SYMBOLS[settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
-                  {totalSpend.toLocaleString()}
+                  {totalProfit.toLocaleString()}
                 </p>
                 <p className="text-gray-600 text-xs font-medium mt-2 flex items-center gap-1">
                   <TrendingUp className="w-3 h-3" />
@@ -307,10 +308,10 @@ export default function Dashboard() {
           <div className="stat-card cursor-pointer">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-muted-foreground text-sm font-medium">Total spend</p>
+                <p className="text-muted-foreground text-sm font-medium">Total profit</p>
                 <p className="text-3xl font-bold text-foreground mt-2">
                   {CURRENCY_SYMBOLS[settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
-                  {totalSpend.toLocaleString()}
+                  {totalProfit.toLocaleString()}
                 </p>
                 <p className="text-gray-600 text-xs font-medium mt-2 flex items-center gap-1">
                   <TrendingUp className="w-3 h-3" />
@@ -388,6 +389,11 @@ export default function Dashboard() {
                     <p className="text-xs text-muted-foreground">
                       {new Date(booking.dates.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </p>
+                    {isAdmin && booking.clientName && (
+                      <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tight mt-0.5">
+                        By {booking.clientName}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-bold text-foreground">

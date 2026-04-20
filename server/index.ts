@@ -18,11 +18,24 @@ async function startServer() {
   await initDB();
 
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
   app.use(cors());
 
   const server = createServer(app);
-  const SECRET = process.env.JWT_SECRET || 'wayfarer_secret';
+  const SECRET = process.env.JWT_SECRET || 'travel_secret';
+
+  const authenticateToken = (req: any, res: any, next: any) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.status(401).json({ error: "Missing token" });
+
+    jwt.verify(token, SECRET, (err: any, user: any) => {
+      if (err) return res.status(403).json({ error: "Invalid token" });
+      req.user = user;
+      next();
+    });
+  };
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", backendPort: process.env.PORT || 5050 });
@@ -32,16 +45,25 @@ async function startServer() {
 
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { full_name, email, password, role } = req.body;
+      const { full_name, email, password, role, security_question, security_answer } = req.body;
       const userRole = role === 'admin' ? 'admin' : 'client';
       const id = nanoid();
       const hashedPass = await bcrypt.hash(password, 10);
+      
+      let hashedSecurityAnswer = null;
+      if (security_answer) {
+        hashedSecurityAnswer = await bcrypt.hash(security_answer.toLowerCase().trim(), 10);
+      }
 
       const existing = await prisma.user.findUnique({ where: { email } });
       if (existing) return res.status(400).json({ error: "Email already exists" });
 
       await prisma.user.create({
-        data: { id, full_name, email, password: hashedPass, role: userRole }
+        data: { 
+          id, full_name, email, password: hashedPass, role: userRole, 
+          security_question: security_question || null,
+          security_answer: hashedSecurityAnswer 
+        }
       });
 
       const token = jwt.sign({ id, email, role: userRole }, SECRET);
@@ -62,7 +84,15 @@ async function startServer() {
 
       const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, SECRET);
       res.json({ 
-        user: { id: user.id, full_name: user.full_name, email: user.email, role: user.role, avatar: user.avatar }, 
+        user: { 
+          id: user.id, 
+          full_name: user.full_name, 
+          email: user.email, 
+          role: user.role, 
+          avatar: user.avatar,
+          phone: user.phone,
+          company: user.company
+        }, 
         token 
       });
     } catch (err: any) {
@@ -70,34 +100,98 @@ async function startServer() {
     }
   });
 
-  const authenticateToken = (req: any, res: any, next: any) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ error: "Missing token" });
+  app.post("/api/auth/forgot-password/check", async (req, res) => {
+    try {
+      const { email } = req.body;
+      const user = await prisma.user.findUnique({ where: { email } });
+      
+      if (!user) {
+        // Obscure error to prevent email enumeration, but for feature clarity we return not found
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      if (!user.security_question) {
+        return res.status(403).json({ error: "No security question configured for this account. Contact an administrator." });
+      }
 
-    jwt.verify(token, SECRET, (err: any, user: any) => {
-      if (err) return res.status(403).json({ error: "Invalid token" });
-      req.user = user;
-      next();
-    });
-  };
+      res.json({ question: user.security_question });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/auth/forgot-password/reset", async (req, res) => {
+    try {
+      const { email, answer, newPassword } = req.body;
+      const user = await prisma.user.findUnique({ where: { email } });
+      
+      if (!user || !user.security_answer) {
+        return res.status(403).json({ error: "Cannot process request." });
+      }
+
+      const valid = await bcrypt.compare(answer.toLowerCase().trim(), user.security_answer);
+      if (!valid) {
+        return res.status(401).json({ error: "Security answer is incorrect. You are not allowed to change the password." });
+      }
+
+      const hashedNewPass = await bcrypt.hash(newPassword, 10);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { password: hashedNewPass }
+      });
+
+      res.json({ message: "Password updated successfully" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.patch("/api/auth/profile", authenticateToken, async (req: any, res) => {
+    try {
+      const { full_name, email, phone, company, avatar } = req.body;
+      const updatedUser = await prisma.user.update({
+        where: { id: req.user.id },
+        data: {
+          ...(full_name && { full_name }),
+          ...(email && { email }),
+          ...(phone && { phone }),
+          ...(company && { company }),
+          ...(avatar && { avatar })
+        }
+      });
+      // Return user without password
+      const { password, security_answer, ...userWithoutPass } = updatedUser as any;
+      res.json(userWithoutPass);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+
 
   // ──── Trips Endpoints ────
 
   app.get("/api/trips", authenticateToken, async (req: any, res) => {
     try {
-      // Find all admin IDs
-      const adminUsers = await prisma.user.findMany({ where: { role: 'admin' }, select: { id: true } });
-      const adminIds = adminUsers.map((u: any) => u.id);
+      let whereClause = {};
 
-      // Return trips owned by the user OR any admin
-      const trips = await prisma.trip.findMany({ 
-        where: { 
+      if (req.user.role !== 'admin') {
+        // Find all admin IDs
+        const adminUsers = await prisma.user.findMany({ where: { role: 'admin' }, select: { id: true } });
+        const adminIds = adminUsers.map((u: any) => u.id);
+
+        whereClause = {
           OR: [
             { user_id: req.user.id },
             { user_id: { in: adminIds } }
           ]
-        } 
+        };
+      }
+
+      // Return all trips for admin, and specific trips for clients
+      const trips = await prisma.trip.findMany({ 
+        where: whereClause,
+        orderBy: { created_at: 'desc' }
       });
       res.json(trips);
     } catch (err: any) {
@@ -162,7 +256,13 @@ async function startServer() {
       if (req.user.role !== 'admin') {
         whereClause = { user_id: req.user.id };
       }
-      const bookings = await prisma.booking.findMany({ where: whereClause });
+      
+      const bookings = await prisma.booking.findMany({ 
+        where: whereClause,
+        include: { user: { select: { full_name: true, email: true } } },
+        orderBy: { created_at: 'desc' }
+      });
+      
       res.json(bookings);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -198,12 +298,30 @@ async function startServer() {
   app.patch("/api/bookings/:id", authenticateToken, async (req: any, res) => {
     try {
       if (req.user.role !== 'admin') return res.status(403).json({ error: "Access denied" });
-      const { status } = req.body;
-      await prisma.booking.update({
+      const { status, notes, admin_comment } = req.body;
+      console.log(`[PATCH /api/bookings/${req.params.id}] Status update to: ${status}`);
+      
+      const updatedBooking = await (prisma.booking as any).update({
         where: { id: req.params.id },
-        data: { status }
+        data: { 
+          ...(status !== undefined && { status }),
+          ...(notes !== undefined && { notes }),
+          ...(admin_comment !== undefined && { admin_comment }),
+          status_updated_at: new Date()
+        },
+        include: { user: { select: { full_name: true, email: true } } }
       });
-      res.json({ status });
+      res.json(updatedBooking);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete("/api/bookings/:id", authenticateToken, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin') return res.status(403).json({ error: "Access denied" });
+      await prisma.booking.delete({ where: { id: req.params.id } });
+      res.json({ message: "Booking deleted" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -212,7 +330,14 @@ async function startServer() {
   // ──── Expenses Endpoints ────
   app.get("/api/expenses", authenticateToken, async (req: any, res) => {
     try {
-      const expenses = await prisma.expense.findMany({ where: { user_id: req.user.id } });
+      let whereClause = {};
+      if (req.user.role !== 'admin') {
+        whereClause = { user_id: req.user.id };
+      }
+      const expenses = await prisma.expense.findMany({ 
+        where: whereClause,
+        orderBy: { created_at: 'desc' }
+      });
       res.json(expenses);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -269,7 +394,14 @@ async function startServer() {
   // ──── Travelers Endpoints ────
   app.get("/api/travelers", authenticateToken, async (req: any, res) => {
     try {
-      const travelers = await prisma.traveler.findMany({ where: { user_id: req.user.id } });
+      let whereClause = {};
+      if (req.user.role !== 'admin') {
+        whereClause = { user_id: req.user.id };
+      }
+      const travelers = await prisma.traveler.findMany({ 
+        where: whereClause,
+        orderBy: { created_at: 'desc' }
+      });
       res.json(travelers);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -332,7 +464,7 @@ async function startServer() {
         where: { user_id: req.user.id }
       });
       if (!settings) {
-        return res.json({ company_name: 'Acme Travel Inc.', currency: 'USD ($)', budget_threshold: 10000 });
+        return res.json({ company_name: 'Acme Travel Inc.', currency: 'USD', budget_threshold: 10000 });
       }
       res.json(settings);
     } catch (err: any) {

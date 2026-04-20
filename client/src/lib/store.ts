@@ -31,6 +31,11 @@ export interface Booking {
   tripId?: string;
   notes?: string;
   userId?: string;
+  clientName?: string;  // populated for admin view
+  clientEmail?: string;
+  adminComment?: string;
+  statusUpdatedAt?: string;
+  created_at?: string;
 }
 
 export interface Trip {
@@ -80,13 +85,13 @@ export interface UserSettings {
   theme: 'dark' | 'light';
 }
 
-interface WayfarerStore {
+interface TravelStore {
   // Auth state
   user: User | null;
   isAuthenticated: boolean;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (fullName: string, email: string, password: string, role: string) => Promise<void>;
+  register: (fullName: string, email: string, password: string, role: string, securityQuestion?: string, securityAnswer?: string) => Promise<void>;
   logout: () => void;
   updateProfile: (updates: Partial<User>) => void;
 
@@ -128,11 +133,16 @@ interface WayfarerStore {
   // Approval actions (Admin)
   approveBooking: (bookingId: string, _comment: string) => Promise<void>;
   rejectBooking: (bookingId: string, _comment: string) => Promise<void>;
+
+  // Sync
+  startPolling: () => void;
+  stopPolling: () => void;
+  _pollInterval: ReturnType<typeof setInterval> | null;
 }
 
 const defaultSettings: UserSettings = {
   companyName: 'Acme Travel Inc.',
-  currency: 'USD ($)',
+  currency: 'USD',
   budgetThreshold: 10000,
   notifications: {
     bookingConfirmations: true,
@@ -146,12 +156,12 @@ const defaultSettings: UserSettings = {
   theme: 'light',
 };
 
-export const useWayfarerStore = create<WayfarerStore>()(
+export const useTravelStore = create<TravelStore>()(
   persist(
     (set, get) => ({
       user: null,
       isAuthenticated: false,
-      token: localStorage.getItem('wayfarer_token'),
+      token: localStorage.getItem('travel_token'),
 
       // Settings
       settings: defaultSettings,
@@ -163,26 +173,33 @@ export const useWayfarerStore = create<WayfarerStore>()(
       // Auth
       login: async (email, password) => {
         const { data } = await api.post('/auth/login', { email, password });
-        localStorage.setItem('wayfarer_token', data.token);
+        localStorage.setItem('travel_token', data.token);
         set({ user: data.user, isAuthenticated: true, token: data.token });
         await get().fetchData();
       },
 
-      register: async (fullName, email, password, role) => {
-        const { data } = await api.post('/auth/register', { full_name: fullName, email, password, role });
-        localStorage.setItem('wayfarer_token', data.token);
+      register: async (fullName, email, password, role, securityQuestion, securityAnswer) => {
+        const payload: any = { full_name: fullName, email, password, role };
+        if (securityQuestion && securityAnswer) {
+            payload.security_question = securityQuestion;
+            payload.security_answer = securityAnswer;
+        }
+        const { data } = await api.post('/auth/register', payload);
+        localStorage.setItem('travel_token', data.token);
         set({ user: data.user, isAuthenticated: true, token: data.token });
         await get().fetchData();
       },
 
       logout: () => {
-        localStorage.removeItem('wayfarer_token');
+        localStorage.removeItem('travel_token');
         set({ user: null, isAuthenticated: false, token: null, bookings: [], trips: [], travelers: [], expenses: [] });
       },
 
-      updateProfile: (updates) => set((state) => ({
-        user: state.user ? { ...state.user, ...updates } : null
-      })),
+      updateProfile: async (updates) => {
+        const { data } = await api.patch('/auth/profile', updates);
+        set({ user: data });
+        return data;
+      },
 
       // Data
       bookings: [],
@@ -199,21 +216,41 @@ export const useWayfarerStore = create<WayfarerStore>()(
             api.get('/expenses'),
             api.get('/travelers'),
           ]);
-          set({ 
-            bookings: bookingsRes.data.map((b: any) => ({
+          const mappedBookings = bookingsRes.data.map((b: any) => ({
                 ...b,
                 userId: b.user_id,
                 tripId: b.trip_id,
                 dates: { start: b.start_date, end: b.end_date },
-                price: Number(b.price)
-            })), 
-            trips: tripsRes.data.map((t: any) => ({
+                price: Number(b.price),
+                clientName: b.user?.full_name,
+                clientEmail: b.user?.email,
+                adminComment: b.admin_comment,
+                statusUpdatedAt: b.status_updated_at,
+          }));
+
+          const mappedTrips = tripsRes.data.map((t: any) => ({
                 ...t,
                 userId: t.user_id,
                 startDate: t.start_date,
                 endDate: t.end_date,
-                bookingIds: [] // Recomputed if needed
-            })),
+                bookingIds: mappedBookings.filter((b: any) => b.tripId === t.id).map((b: any) => b.id)
+          }));
+
+          const history = mappedBookings
+            .filter((b: any) => (b.status === 'confirmed' || b.status === 'cancelled') && b.statusUpdatedAt)
+            .map((b: any) => ({
+                id: b.id,
+                bookingId: b.id,
+                timestamp: b.statusUpdatedAt,
+                action: b.status === 'confirmed' ? 'approved' : 'rejected',
+                adminName: 'TRAVEL Administrator', // Simplified
+                comment: b.adminComment
+            }));
+
+          set({ 
+            bookings: mappedBookings, 
+            trips: mappedTrips,
+            approvalHistory: history,
             expenses: expensesRes.data.map((e: any) => ({
                 ...e,
                 userId: e.user_id,
@@ -235,13 +272,18 @@ export const useWayfarerStore = create<WayfarerStore>()(
 
       // Booking CRUD
       addBooking: async (booking) => {
-        const payload = {
-            ...booking,
-            startDate: (booking as any).dates.start,
-            endDate: (booking as any).dates.end
-        };
-        await api.post('/bookings', payload);
-        await get().fetchData();
+        try {
+          const payload = {
+              ...booking,
+              startDate: (booking as any).dates.start,
+              endDate: (booking as any).dates.end
+          };
+          await api.post('/bookings', payload);
+          await get().fetchData();
+        } catch (err: any) {
+          console.error('[addBooking] ERROR:', err.response?.data || err.message);
+          throw err;
+        }
       },
 
       updateBooking: async (id, updates) => {
@@ -308,21 +350,42 @@ export const useWayfarerStore = create<WayfarerStore>()(
       },
 
       // Approval actions (Admin)
-      approveBooking: async (bookingId, _comment) => {
-        await api.patch(`/bookings/${bookingId}`, { status: 'confirmed' });
+      approveBooking: async (bookingId, comment) => {
+        await api.patch(`/bookings/${bookingId}`, { status: 'confirmed', admin_comment: comment });
         await get().fetchData();
       },
 
-      rejectBooking: async (bookingId, _comment) => {
-        await api.patch(`/bookings/${bookingId}`, { status: 'cancelled' });
+      rejectBooking: async (bookingId, comment) => {
+        await api.patch(`/bookings/${bookingId}`, { status: 'cancelled', admin_comment: comment });
         await get().fetchData();
+      },
+
+      // Polling — keeps admin & client in sync every 30s
+      _pollInterval: null,
+
+      startPolling: () => {
+        if (get()._pollInterval) return; // already running
+        const interval = setInterval(async () => {
+          if (get().isAuthenticated) {
+            await get().fetchData();
+          }
+        }, 30000);
+        set({ _pollInterval: interval });
+      },
+
+      stopPolling: () => {
+        const interval = get()._pollInterval;
+        if (interval) {
+          clearInterval(interval);
+          set({ _pollInterval: null });
+        }
       },
     }),
     {
-      name: 'wayfarer-storage',
+      name: 'travel-storage',
       partialize: (state) => ({
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
+        user: import.meta.env.DEV ? null : state.user,
+        isAuthenticated: import.meta.env.DEV ? false : state.isAuthenticated,
         settings: state.settings,
       }),
     }

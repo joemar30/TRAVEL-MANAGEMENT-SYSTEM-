@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useWayfarerStore, BookingStatus, BookingType } from '@/lib/store';
+import { useTravelStore, BookingStatus, BookingType } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import {
   Plane,
@@ -41,7 +41,7 @@ const emptyForm: BookingFormData = {
 };
 
 export default function Bookings() {
-  const { bookings, trips, addBooking, updateBooking, deleteBooking } = useWayfarerStore();
+  const { bookings, trips, addBooking, updateBooking, deleteBooking } = useTravelStore();
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [showModal, setShowModal] = useState(false);

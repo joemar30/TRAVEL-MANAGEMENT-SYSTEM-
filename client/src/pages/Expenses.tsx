@@ -1,343 +1,388 @@
-import { useState } from 'react';
-import { useWayfarerStore } from '@/lib/store';
+import { useState, useMemo } from 'react';
+import { useTravelStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Edit, X, Save, DollarSign, Filter, Search } from 'lucide-react';
-import { toast } from 'sonner';
+import {
+  TrendingUp,
+  Printer,
+  Filter,
+  Plane,
+  Hotel,
+  Car,
+  MapPin,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  AlertCircle,
+  DollarSign,
+  BarChart3,
+  Search,
+  Receipt,
+} from 'lucide-react';
+import { BookingReceipt } from '@/components/BookingReceipt';
 
-const CURRENCY_SYMBOLS = {
-  'PHP': '₱',
-  'USD': '$',
-  'EUR': '€',
-  'GBP': '£',
-  'JPY': '¥',
-  'KRW': '₩',
-  'SGD': 'S$',
-  'BTC': '₿',
-};
-
-interface ExpenseFormData {
-  tripId: string;
-  category: string;
-  amount: string;
-  date: string;
-  description: string;
-}
-
-const emptyForm: ExpenseFormData = {
-  tripId: '',
-  category: 'meals',
-  amount: '',
-  date: '',
-  description: '',
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  PHP: '₱',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  JPY: '¥',
+  KRW: '₩',
+  SGD: 'S$',
+  BTC: '₿',
 };
 
 export default function Expenses() {
-  const { expenses, trips, addExpense, updateExpense, deleteExpense } = useWayfarerStore();
-  const [filterTrip, setFilterTrip] = useState<string>('all');
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState<ExpenseFormData>(emptyForm);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const { bookings, trips, settings } = useTravelStore();
+  const sym = CURRENCY_SYMBOLS[settings.currency] || '$';
 
-  const filteredExpenses = expenses.filter((expense) => {
-    if (filterTrip !== 'all' && expense.tripId !== filterTrip) return false;
-    return true;
-  });
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterTrip, setFilterTrip] = useState<string>('all');
+  const [filterType, setFilterType] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
+
+  // ── Derived metrics ──────────────────────────────────────────
+  const confirmedBookings = useMemo(
+    () => bookings.filter((b) => b.status === 'confirmed'),
+    [bookings]
+  );
+// ... existing useMemos remain similar, but let's update the filter with search ...
+  const filteredBookings = useMemo(() => {
+    return bookings.filter((b) => {
+      if (filterStatus !== 'all' && b.status !== filterStatus) return false;
+      if (filterTrip !== 'all' && b.tripId !== filterTrip) return false;
+      if (filterType !== 'all' && b.type !== filterType) return false;
+      if (searchTerm && !b.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) && !b.name?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      return true;
+    });
+  }, [bookings, filterStatus, filterTrip, filterType, searchTerm]);
+
+  const totalProfit = useMemo(
+    () => confirmedBookings.reduce((sum, b) => sum + b.price, 0),
+    [confirmedBookings]
+  );
+
+  const pendingRevenue = useMemo(
+    () =>
+      bookings
+        .filter((b) => b.status === 'in-review' || b.status === 'pending')
+        .reduce((sum, b) => sum + b.price, 0),
+    [bookings]
+  );
+
+  const totalBookings = bookings.length;
+  const confirmedCount = confirmedBookings.length;
 
   const getTripName = (tripId?: string) => {
-    if (!tripId) return 'General';
+    if (!tripId) return '—';
     return trips.find((t) => t.id === tripId)?.destination || 'Unknown Trip';
   };
 
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'meals':
-        return 'bg-blue-100 text-blue-700';
-      case 'activities':
-        return 'bg-purple-100 text-purple-700';
-      case 'transport':
-        return 'bg-green-100 text-green-700';
-      case 'accommodation':
-        return 'bg-orange-100 text-orange-700';
-      case 'shopping':
-        return 'bg-pink-100 text-pink-700';
-      default:
-        return 'bg-gray-100 text-gray-700';
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'flight': return <Plane className="w-4 h-4" />;
+      case 'hotel': return <Hotel className="w-4 h-4" />;
+      case 'car': return <Car className="w-4 h-4" />;
+      default: return <MapPin className="w-4 h-4" />;
     }
   };
 
-  const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
-
-  const openAddModal = () => {
-    setEditingId(null);
-    setForm(emptyForm);
-    setShowModal(true);
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'confirmed':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-green-100 text-green-700 border border-green-200">
+            Confirmed
+          </span>
+        );
+      case 'pending':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200">
+            Pending
+          </span>
+        );
+      case 'in-review':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 border border-blue-200">
+            In Review
+          </span>
+        );
+      case 'cancelled':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700 border border-red-200">
+            Cancelled
+          </span>
+        );
+      default: return null;
+    }
   };
 
-  const openEditModal = (expenseId: string) => {
-    const expense = expenses.find((e) => e.id === expenseId);
-    if (!expense) return;
-    setEditingId(expenseId);
-    setForm({
-      tripId: expense.tripId || '',
-      category: expense.category,
-      amount: expense.amount.toString(),
-      date: expense.date,
-      description: expense.description,
-    });
-    setShowModal(true);
-  };
-
-  const handleSubmit = () => {
-    if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) {
-      toast.error('Please enter a valid amount');
-      return;
-    }
-    if (!form.date) {
-      toast.error('Please select a date');
-      return;
-    }
-    if (!form.description.trim()) {
-      toast.error('Please enter a description');
-      return;
-    }
-
-    const expenseData = {
-      tripId: form.tripId || undefined,
-      category: form.category,
-      amount: Number(form.amount),
-      date: form.date,
-      description: form.description.trim(),
-    };
-
-    if (editingId) {
-      updateExpense(editingId, expenseData);
-      toast.success('Expense updated successfully');
-    } else {
-      addExpense({
-        ...expenseData,
-        id: 'exp-' + Date.now(),
-        userId: 'user-demo-client',
-      });
-      toast.success('Expense added successfully');
-    }
-
-    setShowModal(false);
-    setForm(emptyForm);
-    setEditingId(null);
-  };
-
-  const handleDelete = (id: string) => {
-    deleteExpense(id);
-    setShowDeleteConfirm(null);
-    toast.success('Expense deleted');
+  const handlePrint = () => {
+    window.print();
   };
 
   return (
-    <div className="p-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-muted-foreground text-sm">
-            Total expenses: {CURRENCY_SYMBOLS[useWayfarerStore.getState().settings.currency as keyof typeof CURRENCY_SYMBOLS] || '$'}
-            {totalExpenses.toLocaleString()}
+    <div className="p-6 md:p-10 space-y-8 bg-zinc-50/50 min-h-screen">
+      {viewingReceipt && (
+        <BookingReceipt 
+          bookingId={viewingReceipt} 
+          onClose={() => setViewingReceipt(null)} 
+        />
+      )}
+
+      {/* ── Header ────────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-black tracking-tighter text-zinc-900 uppercase" style={{ fontFamily: 'Syne' }}>
+            Financial Oversight
+          </h1>
+          <p className="text-sm text-zinc-500 font-medium">
+            Projected and actual revenue summary from client activity.
           </p>
         </div>
-        <Button onClick={openAddModal} className="bg-black hover:bg-gray-900 text-white">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Expense
-        </Button>
+        <div className="flex items-center gap-3 print:hidden">
+           <div className="relative">
+             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+             <input 
+               type="text"
+               placeholder="Search records..."
+               className="pl-9 pr-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-black outline-none w-64 shadow-sm"
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+             />
+           </div>
+          <Button
+            onClick={handlePrint}
+            className="gap-2 bg-zinc-900 text-white hover:bg-black rounded-xl h-11 px-6 shadow-lg shadow-black/10 transition-all active:scale-95"
+          >
+            <Printer className="w-4 h-4" />
+            Generate Report
+          </Button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 bg-card border border-border px-4 py-3 rounded-xl shadow-sm w-fit">
-        <Filter className="w-4 h-4 text-muted-foreground" />
-        <span className="text-sm font-semibold text-foreground tracking-tight">Filter by Trip:</span>
-        <select
-          value={filterTrip}
-          onChange={(e) => setFilterTrip(e.target.value)}
-          className="bg-transparent text-sm font-medium text-foreground focus:outline-none cursor-pointer border-l border-border pl-3 ml-1 pr-6 hover:text-black transition-colors"
-        >
-          <option value="all">All Trips</option>
-          {trips.map((trip) => (
-            <option key={trip.id} value={trip.id}>
-              {trip.destination}
-            </option>
-          ))}
-        </select>
+      {/* ── Summary Cards ─────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Total Profit */}
+        <div className="bg-black text-white rounded-3xl p-8 relative overflow-hidden group shadow-2xl">
+          <div className="relative z-10 space-y-4">
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Total Earnings</p>
+            <p className="text-3xl font-black tracking-tighter">
+              {sym}{totalProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </p>
+            <div className="h-1 w-12 bg-white/20 rounded-full" />
+            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">From {confirmedCount} Bookings</p>
+          </div>
+          <TrendingUp className="absolute -right-4 -bottom-4 w-32 h-32 text-white/5 -rotate-12 transition-transform group-hover:rotate-0 duration-500" />
+        </div>
+
+        {/* Pending Revenue */}
+        <div className="bg-white border-2 border-zinc-100 rounded-3xl p-8 shadow-sm">
+          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-4">Awaiting Review</p>
+          <p className="text-3xl font-black text-zinc-900 tracking-tighter">
+            {sym}{pendingRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          </p>
+          <div className="flex items-center gap-2 mt-4 text-[10px] text-amber-600 font-black uppercase">
+             <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+             Potential Revenue
+          </div>
+        </div>
+
+        {/* Total Bookings */}
+        <div className="bg-white border-2 border-zinc-100 rounded-3xl p-8 shadow-sm">
+          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-4">Volume</p>
+          <p className="text-3xl font-black text-zinc-900 tracking-tighter">{totalBookings}</p>
+          <p className="text-[10px] text-zinc-400 font-bold uppercase mt-4 tracking-wider">Total Reservations</p>
+        </div>
+
+        {/* Avg Per Booking */}
+        <div className="bg-white border-2 border-zinc-100 rounded-3xl p-8 shadow-sm">
+          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-4">Avg Transaction</p>
+          <p className="text-3xl font-black text-zinc-900 tracking-tighter">
+            {sym}{confirmedCount > 0 ? (totalProfit / confirmedCount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00'}
+          </p>
+          <p className="text-[10px] text-zinc-400 font-bold uppercase mt-4 tracking-wider">Per confirmation</p>
+        </div>
       </div>
 
-      {/* Expenses Table */}
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
+      {/* ── Filters ───────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-4 print:hidden">
+        <div className="flex items-center gap-3 bg-white border border-zinc-200 px-4 py-2.5 rounded-2xl shadow-sm">
+          <div className="bg-zinc-100 p-1.5 rounded-lg">
+            <Filter className="w-3.5 h-3.5 text-zinc-500" />
+          </div>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="bg-transparent text-xs font-bold text-zinc-700 focus:outline-none cursor-pointer pr-2 uppercase pb-0.5"
+          >
+            <option value="all">Status: All</option>
+            <option value="confirmed">confirmed</option>
+            <option value="in-review">in review</option>
+            <option value="pending">pending</option>
+            <option value="cancelled">cancelled</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-3 bg-white border border-zinc-200 px-4 py-2.5 rounded-2xl shadow-sm">
+          <div className="bg-zinc-100 p-1.5 rounded-lg">
+            <MapPin className="w-3.5 h-3.5 text-zinc-500" />
+          </div>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="bg-transparent text-xs font-bold text-zinc-700 focus:outline-none cursor-pointer pr-2 uppercase pb-0.5"
+          >
+            <option value="all">Type: All</option>
+            <option value="flight">Flights</option>
+            <option value="hotel">Hotels</option>
+            <option value="car">Car Service</option>
+          </select>
+        </div>
+
+        {trips.length > 0 && (
+          <div className="flex items-center gap-3 bg-white border border-zinc-200 px-4 py-2.5 rounded-2xl shadow-sm">
+            <div className="bg-zinc-100 p-1.5 rounded-lg">
+              <BarChart3 className="w-3.5 h-3.5 text-zinc-500" />
+            </div>
+            <select
+              value={filterTrip}
+              onChange={(e) => setFilterTrip(e.target.value)}
+              className="bg-transparent text-xs font-bold text-zinc-700 focus:outline-none cursor-pointer pr-2 uppercase pb-0.5 max-w-[150px] truncate"
+            >
+              <option value="all">Trip: All</option>
+              {trips.map((trip) => (
+                <option key={trip.id} value={trip.id}>{trip.destination}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* ── Bookings Table ────────────────────────────────────── */}
+      <div className="bg-white border border-zinc-200 rounded-[2.5rem] overflow-hidden shadow-2xl relative">
+        <div className="px-8 py-6 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
+          <div className="flex items-center gap-4">
+             <div className="w-2 h-8 bg-black rounded-full" />
+             <h3 className="font-black text-xl text-zinc-900 tracking-tighter" style={{ fontFamily: 'Syne' }}>
+               Revenue Ledger
+             </h3>
+          </div>
+          <div className="flex items-center gap-2">
+             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 bg-white border border-zinc-200 px-3 py-1.5 rounded-full shadow-sm">
+                {filteredBookings.length} Records found
+             </span>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-border bg-card/50">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Date</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Trip</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Category</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Description</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Amount</th>
-                <th className="px-6 py-4 text-right text-sm font-semibold text-foreground">Actions</th>
+              <tr className="bg-zinc-50/80">
+                <th className="px-8 py-5 text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] w-20">Type</th>
+                <th className="px-8 py-5 text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">Requester</th>
+                <th className="px-8 py-5 text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">Reservation</th>
+                <th className="px-8 py-5 text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">Travel window</th>
+                <th className="px-8 py-5 text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">Status</th>
+                <th className="px-8 py-5 text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] text-right">Amount</th>
+                <th className="px-8 py-5 text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] text-center print:hidden">Action</th>
               </tr>
             </thead>
-            <tbody>
-              {filteredExpenses.map((expense) => (
-                <tr key={expense.id} className="border-b border-border hover:bg-card/50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-foreground">
-                    {new Date(expense.date).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-foreground">{getTripName(expense.tripId)}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${getCategoryColor(expense.category)}`}>
-                      {expense.category}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-foreground">{expense.description}</td>
-                  <td className="px-6 py-4 font-semibold text-foreground">${expense.amount}</td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => openEditModal(expense.id)}
-                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-muted-foreground hover:text-foreground"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      {showDeleteConfirm === expense.id ? (
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleDelete(expense.id)}
-                            className="px-2 py-1 bg-destructive text-white text-xs rounded font-medium"
-                          >
-                            Delete
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteConfirm(null)}
-                            className="px-2 py-1 bg-gray-200 text-foreground text-xs rounded font-medium"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setShowDeleteConfirm(expense.id)}
-                          className="p-2 hover:bg-destructive/10 rounded-lg transition-colors text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
+            <tbody className="divide-y divide-zinc-100">
+              {filteredBookings.length > 0 ? (
+                filteredBookings.map((booking) => (
+                  <tr key={booking.id} className="hover:bg-zinc-50/50 transition-all group">
+                    <td className="px-8 py-6">
+                      <div className="w-10 h-10 rounded-xl bg-zinc-100 flex items-center justify-center text-zinc-600 transition-transform group-hover:scale-110">
+                        {getTypeIcon(booking.type)}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <p className="text-sm font-black text-zinc-900">{booking.clientName || '—'}</p>
+                      <p className="text-[10px] text-zinc-400 font-bold">{booking.clientEmail}</p>
+                    </td>
+                    <td className="px-8 py-6">
+                      <p className="text-sm font-black text-zinc-900">{booking.name || booking.property || '—'}</p>
+                      <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">{getTripName(booking.tripId)}</p>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-3">
+                         <div className="space-y-0.5">
+                            <p className="text-xs font-black text-zinc-900">
+                               {new Date(booking.dates.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </p>
+                            <div className="h-px w-full bg-zinc-200" />
+                            <p className="text-xs font-black text-zinc-900">
+                               {new Date(booking.dates.end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
+                         </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">{getStatusBadge(booking.status)}</td>
+                    <td className="px-8 py-6 text-right">
+                      <p className={`text-base font-black tracking-tighter ${booking.status === 'confirmed' ? 'text-green-600' : booking.status === 'cancelled' ? 'text-red-400' : 'text-zinc-900'}`}>
+                        {sym}{booking.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                    </td>
+                    <td className="px-8 py-6 text-center print:hidden">
+                       <Button 
+                         variant="ghost" 
+                         size="sm" 
+                         className="h-8 w-8 p-0 rounded-full hover:bg-zinc-900 hover:text-white transition-all shadow-sm"
+                         onClick={() => setViewingReceipt(booking.id)}
+                       >
+                         <Receipt className="w-4 h-4" />
+                       </Button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="px-8 py-24 text-center">
+                    <TrendingUp className="w-16 h-16 text-zinc-200 mx-auto mb-4" />
+                    <p className="text-zinc-400 font-black uppercase tracking-widest text-xs">No matching ledger entries</p>
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
+            {filteredBookings.length > 0 && (
+              <tfoot>
+                <tr className="bg-zinc-50/50">
+                  <td colSpan={6} className="px-8 py-8 text-right">
+                    <div className="space-y-1">
+                       <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">Aggregated Confirmation Total</p>
+                       <p className="text-4xl font-black text-zinc-900 tracking-tighter">
+                         {sym}{filteredBookings
+                           .filter(b => filterStatus !== 'all' ? true : b.status === 'confirmed')
+                           .reduce((sum, b) => sum + b.price, 0)
+                           .toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                       </p>
+                    </div>
+                  </td>
+                  <td className="print:hidden"></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>
 
-      {filteredExpenses.length === 0 && (
-        <div className="text-center py-12">
-          <DollarSign className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">No expenses found</p>
-        </div>
-      )}
-
-      {/* Add/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between p-6 border-b border-border">
-              <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: 'Syne' }}>
-                {editingId ? 'Edit Expense' : 'Add Expense'}
-              </h2>
-              <button
-                onClick={() => { setShowModal(false); setEditingId(null); }}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Trip</label>
-                <select
-                  value={form.tripId}
-                  onChange={(e) => setForm({ ...form, tripId: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-input border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-all"
-                >
-                  <option value="">General (no trip)</option>
-                  {trips.map((trip) => (
-                    <option key={trip.id} value={trip.id}>{trip.destination}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Category</label>
-                <select
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-input border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-all"
-                >
-                  <option value="meals">Meals</option>
-                  <option value="transport">Transport</option>
-                  <option value="accommodation">Accommodation</option>
-                  <option value="activities">Activities</option>
-                  <option value="shopping">Shopping</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Amount ($)</label>
-                <input
-                  type="number"
-                  value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                  placeholder="0.00"
-                  className="w-full px-4 py-2.5 bg-input border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Date</label>
-                <input
-                  type="date"
-                  value={form.date}
-                  onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-input border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Description</label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="What was this expense for?"
-                  rows={3}
-                  className="w-full px-4 py-2.5 bg-input border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent resize-none transition-all"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 p-6 border-t border-border">
-              <Button onClick={handleSubmit} className="flex-1 bg-black hover:bg-gray-900 text-white">
-                <Save className="w-4 h-4 mr-2" />
-                {editingId ? 'Update' : 'Add Expense'}
-              </Button>
-              <Button variant="outline" onClick={() => { setShowModal(false); setEditingId(null); }}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Print Styles (injected inline) ────────────────────── */}
+      <style>{`
+        @media print {
+          body { background: white !important; }
+          .p-6, .p-10 { padding: 20px !important; }
+          .shadow-2xl, .shadow-lg, .shadow-sm { box-shadow: none !important; border: 1px solid #eee !important; }
+          .rounded-[2.5rem], .rounded-3xl { border-radius: 12px !important; }
+          .print\\:hidden, .no-print, button { display: none !important; }
+          select, input { display: none !important; }
+          .grid { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 10px !important; }
+          .bg-emerald-500, .bg-black { background: #000 !important; color: white !important; -webkit-print-color-adjust: exact; }
+          .text-emerald-500, .text-green-600 { color: #059669 !important; }
+          .bg-zinc-50\\/50 { background: #fafafa !important; }
+        }
+      `}</style>
     </div>
   );
 }
+

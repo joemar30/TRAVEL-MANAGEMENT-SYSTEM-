@@ -128,7 +128,7 @@
     min-width: 0;
   }
 
-  /* Wayfarer custom components */
+  /* Travel custom components */
   .stat-card {
     background-color: var(--card);
     color: var(--card-foreground);

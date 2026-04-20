@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useWayfarerStore } from '@/lib/store';
+import { useTravelStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Plus, MapPin, Calendar, Plane, Hotel, Car, Trash2, Edit, X, Save, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,7 +28,7 @@ const emptyForm: TripFormData = {
 };
 
 export default function Itineraries() {
-  const { trips, bookings, addTrip, updateTrip, deleteTrip, user, settings } = useWayfarerStore();
+  const { trips, bookings, addTrip, updateTrip, deleteTrip, user, settings } = useTravelStore();
   const isAdmin = user?.role === 'admin';
   const myUserId = user?.id || 'guest';
   const [showModal, setShowModal] = useState(false);
@@ -174,10 +174,12 @@ export default function Itineraries() {
               Randomize
             </Button>
           )}
-          <Button onClick={openAddModal} className="bg-black hover:bg-gray-900 text-white shadow-lg">
-            <Plus className="w-4 h-4 mr-2" />
-            Create Itinerary
-          </Button>
+          {isAdmin && (
+            <Button onClick={openAddModal} className="bg-black hover:bg-gray-900 text-white shadow-lg">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Itinerary
+            </Button>
+          )}
         </div>
       </div>
 
@@ -256,10 +258,12 @@ export default function Itineraries() {
               {/* Actions */}
               {(isAdmin || trip.userId === myUserId) ? (
                 <div className="flex gap-2">
-                  <Button variant="outline" className="flex-1" onClick={() => openEditModal(trip.id)}>
-                    <Edit className="w-4 h-4 mr-2" />
-                    Edit
-                  </Button>
+                  {isAdmin && (
+                    <Button variant="outline" className="flex-1" onClick={() => openEditModal(trip.id)}>
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                  )}
                   {showDeleteConfirm === trip.id ? (
                     <div className="flex gap-1">
                       <Button variant="destructive" size="sm" onClick={() => handleDelete(trip.id)}>

@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useLocation, Link } from 'wouter';
-import { useWayfarerStore } from '@/lib/store';
+import { useTravelStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Plus, Mail, Lock, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Login() {
   const [, setLocation] = useLocation();
-  const { login } = useWayfarerStore();
+  const { login } = useTravelStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,10 +40,10 @@ export default function Login() {
             <img src="/favicon-tms.png" className="w-full h-full object-cover rounded-full" alt="TMS Logo" />
           </div>
           <h1 className="text-4xl font-black tracking-tighter text-foreground" style={{ fontFamily: 'Syne' }}>
-            TMS
+            TRAVEL
           </h1>
           <p className="text-sm font-bold text-muted-foreground uppercase tracking-[0.2em]">
-            Travel Management System
+            Travel Booking System
           </p>
         </div>
 
@@ -87,6 +87,11 @@ export default function Login() {
                 className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-black transition-all"
                 required
               />
+              <div className="flex justify-end mt-2">
+                <Link href="/forgot-password" className="text-sm font-semibold text-muted-foreground hover:text-black hover:underline transition-colors">
+                  Forgot Password?
+                </Link>
+              </div>
             </div>
 
             <Button

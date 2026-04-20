@@ -1,7 +1,7 @@
-Wayfarer Travel Management System
+Travel Travel Booking System
 ==================================
 
-Wayfarer is a professional travel management platform designed to streamline the process of managing bookings, itineraries, and travel expenses through a modern and intuitive interface.
+Travel is a professional travel management platform designed to streamline the process of managing bookings, itineraries, and travel expenses through a modern and intuitive interface.
 
 Overview
 --------
@@ -12,7 +12,7 @@ Key Features
 ------------
 
 - Dashboard
-  Detailed overview of active bookings, total spending, and upcoming trip schedules with visual trends and quick actions.
+  Detailed overview of active bookings, total profit, and upcoming trip schedules with visual trends and quick actions.
 
 - Booking Management
   Interface for tracking flights, hotels, and car rentals. Includes status indicators and filtering capabilities for efficient management.
@@ -27,7 +27,7 @@ Key Features
   Secure storage for individual traveler information, including passport data, seat preferences, and loyalty program details.
 
 - Analytics and Reports
-  Visual breakdowns of spending patterns, booking distributions, and travel frequency to help optimize travel budgets.
+  Visual breakdowns of profit patterns, booking distributions, and travel frequency to help optimize travel budgets.
 
 Frontend Technology Stack
 -------------------------

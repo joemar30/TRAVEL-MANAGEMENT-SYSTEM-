@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useWayfarerStore } from '@/lib/store';
+import { useTravelStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2, Edit, User, X, Save, FileUp } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,7 +23,7 @@ const emptyForm: TravelerFormData = {
 };
 
 export default function Travelers() {
-  const { travelers, addTraveler, updateTraveler, deleteTraveler } = useWayfarerStore();
+  const { travelers, addTraveler, updateTraveler, deleteTraveler } = useTravelStore();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<TravelerFormData>(emptyForm);

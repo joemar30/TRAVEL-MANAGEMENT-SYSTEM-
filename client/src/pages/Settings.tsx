@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { useWayfarerStore } from '@/lib/store';
+import { useTravelStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Settings as SettingsIcon, Bell, Lock, Palette, Save, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Settings() {
-  const { settings, updateSettings, updateNotificationSettings, logout } = useWayfarerStore();
+  const { settings, updateSettings, updateNotificationSettings, logout } = useTravelStore();
   const [companyName, setCompanyName] = useState(settings.companyName);
   const [currency, setCurrency] = useState(settings.currency);
   const [budgetThreshold, setBudgetThreshold] = useState(settings.budgetThreshold);
@@ -76,11 +76,11 @@ export default function Settings() {
                 onChange={(e) => setCurrency(e.target.value)}
                 className="w-full px-4 py-2.5 bg-input border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-all"
               >
-                <option value="USD ($)">USD ($)</option>
-                <option value="EUR (€)">EUR (€)</option>
-                <option value="GBP (£)">GBP (£)</option>
-                <option value="PHP (₱)">PHP (₱)</option>
-                <option value="JPY (¥)">JPY (¥)</option>
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="PHP">PHP (₱)</option>
+                <option value="JPY">JPY (¥)</option>
               </select>
             </div>
 

@@ -1,6 +1,6 @@
-# Wayfarer - Travel Booking Management System
+# Travel - Travel Booking Management System
 
-Wayfarer is a modern, full-stack travel booking management system designed for individual travelers and travel managers. It provides a comprehensive dashboard for managing flights, hotels, car rentals, expenses, itineraries, and traveler profiles with an intuitive, professional interface.
+Travel is a modern, full-stack travel booking management system designed for individual travelers and travel managers. It provides a comprehensive dashboard for managing flights, hotels, car rentals, expenses, itineraries, and traveler profiles with an intuitive, professional interface.
 
 ## Features
 
@@ -64,7 +64,7 @@ Gain insights into travel spending and patterns:
 - **Trend Indicators**: Track spending trends over time
 
 ### 8. Settings & Profile Management
-Customize your Wayfarer experience:
+Customize your Travel experience:
 - **General Settings**: Company name, currency, budget thresholds
 - **Notification Preferences**: Control email alerts and reminders
 - **Security**: Password management and session control
@@ -73,7 +73,7 @@ Customize your Wayfarer experience:
 
 ## Design Language
 
-Wayfarer features a modern, minimalist design with the following characteristics:
+Travel features a modern, minimalist design with the following characteristics:
 
 ### Color Palette
 - **Primary Background**: Deep charcoal (#1A1F2E)
@@ -129,7 +129,7 @@ The sidebar collapses to icon-only mode on tablets and transforms to a hamburger
 
 ### Installation
 ```bash
-cd /home/ubuntu/wayfarer
+cd /home/ubuntu/Travel
 pnpm install
 ```
 
@@ -212,7 +212,7 @@ Potential features for future development:
 
 ## Browser Support
 
-Wayfarer is optimized for modern browsers:
+Travel is optimized for modern browsers:
 - Chrome/Edge (latest)
 - Firefox (latest)
 - Safari (latest)
@@ -227,7 +227,7 @@ The application is optimized for performance:
 
 ## Accessibility
 
-Wayfarer follows accessibility best practices:
+Travel follows accessibility best practices:
 - Semantic HTML structure
 - Keyboard navigation support
 - Focus indicators on interactive elements
@@ -240,4 +240,4 @@ For issues, suggestions, or feature requests, please contact the development tea
 
 ---
 
-**Wayfarer v1.0.0** — Built with React, Tailwind CSS, and modern web technologies.
+**Travel v1.0.0** — Built with React, Tailwind CSS, and modern web technologies.

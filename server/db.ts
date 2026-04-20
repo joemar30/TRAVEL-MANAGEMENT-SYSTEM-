@@ -6,21 +6,20 @@ export const prisma = new PrismaClient();
 export async function initDB() {
   console.log("Initializing database with Prisma...");
   
-  // Seed the admin user if not exists
-  const existingAdmin = await prisma.user.findUnique({
-    where: { email: 'admin@tms.com' }
+  // Ensure the admin user exists and has the correct role
+  await prisma.user.upsert({
+    where: { email: 'admin@travel.com' },
+    update: {
+      role: 'admin',
+      password: '$2b$10$1Ma8RxsR8JHW2Z9lVmP/cO1pk02zPoIwRyrUZdz/4LPZImsPTtb/q', // password is 'admin'
+    },
+    create: {
+      id: 'admin-01',
+      full_name: 'TRAVEL Administrator',
+      email: 'admin@travel.com',
+      password: '$2b$10$1Ma8RxsR8JHW2Z9lVmP/cO1pk02zPoIwRyrUZdz/4LPZImsPTtb/q', // password is 'admin'
+      role: 'admin'
+    }
   });
-
-  if (!existingAdmin) {
-    await prisma.user.create({
-      data: {
-        id: 'admin-01',
-        full_name: 'TMS Administrator',
-        email: 'admin@tms.com',
-        password: '$2b$10$s7rNylmusHMT1qVuYfSmH.ZEO2T6a0Qf7lPfVoe6N9Z2QAKotY4cq',
-        role: 'admin'
-      }
-    });
-    console.log("Admin seeded.");
-  }
+  console.log("Admin user synchronized.");
 }

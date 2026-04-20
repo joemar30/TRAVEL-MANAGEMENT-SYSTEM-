@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { useLocation, Link } from 'wouter';
-import { useWayfarerStore } from '@/lib/store';
+import { useTravelStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Plus, Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Register() {
   const [, setLocation] = useLocation();
-  const { register } = useWayfarerStore();
+  const { register } = useTravelStore();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<'client' | 'admin'>('client');
+  const [securityQuestion, setSecurityQuestion] = useState('');
+  const [securityAnswer, setSecurityAnswer] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -32,7 +34,7 @@ export default function Register() {
 
     setLoading(true);
     try {
-      await register(fullName, email, password, role);
+      await register(fullName, email, password, role, securityQuestion, securityAnswer);
       toast.success('Account created successfully!');
       setLocation('/');
     } catch (err: any) {
@@ -51,10 +53,10 @@ export default function Register() {
             <img src="/favicon-tms.png" className="w-full h-full object-cover rounded-full" alt="TMS Logo" />
           </div>
           <h1 className="text-4xl font-black tracking-tighter text-foreground" style={{ fontFamily: 'Syne' }}>
-            TMS
+            TRAVEL
           </h1>
           <p className="text-sm font-bold text-muted-foreground uppercase tracking-[0.2em]">
-            Travel Management System
+            Travel Booking System
           </p>
         </div>
 
@@ -65,7 +67,7 @@ export default function Register() {
               Create Account
             </h2>
             <p className="text-muted-foreground text-sm">
-               Register for a new TMS account
+               Register for a new TRAVEL account
             </p>
           </div>
 
@@ -147,6 +149,39 @@ export default function Register() {
                   required
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-2">
+                Security Question (Optional)
+              </label>
+              <select
+                value={securityQuestion}
+                onChange={(e) => setSecurityQuestion(e.target.value)}
+                className="w-full px-4 py-3 mb-4 bg-input border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-black transition-all"
+              >
+                <option value="">Select a security question</option>
+                <option value="What is your mother's maiden name?">What is your mother's maiden name?</option>
+                <option value="What was the name of your first pet?">What was the name of your first pet?</option>
+                <option value="What city were you born in?">What city were you born in?</option>
+                <option value="What is your favorite book?">What is your favorite book?</option>
+              </select>
+
+              {securityQuestion && (
+                <>
+                  <label className="block text-sm font-semibold text-foreground mb-2">
+                    Security Answer
+                  </label>
+                  <input
+                    type="text"
+                    value={securityAnswer}
+                    onChange={(e) => setSecurityAnswer(e.target.value)}
+                    placeholder="Enter your answer"
+                    className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-black transition-all"
+                    required={!!securityQuestion}
+                  />
+                </>
+              )}
             </div>
 
             <Button

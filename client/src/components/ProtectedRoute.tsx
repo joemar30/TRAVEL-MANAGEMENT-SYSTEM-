@@ -1,4 +1,4 @@
-import { useWayfarerStore, UserRole } from '@/lib/store';
+import { useTravelStore, UserRole } from '@/lib/store';
 import { useLocation } from 'wouter';
 import { useEffect } from 'react';
 import { Shield } from 'lucide-react';
@@ -10,7 +10,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { isAuthenticated, user } = useWayfarerStore();
+  const { isAuthenticated, user } = useTravelStore();
   const [, setLocation] = useLocation();
 
   useEffect(() => {

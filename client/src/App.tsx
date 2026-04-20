@@ -7,7 +7,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { Layout } from "./components/Layout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import { useWayfarerStore } from "./lib/store";
+import { useTravelStore } from "./lib/store";
 
 // Pages
 import Login from "./pages/Login";
@@ -20,80 +20,88 @@ import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
 import Approvals from "./pages/Approvals";
 import Profile from "./pages/Profile";
- import Settings from "./pages/Settings";
+import Settings from "./pages/Settings";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
 
 function Router() {
-  const { isAuthenticated, fetchData } = useWayfarerStore();
+  const { isAuthenticated, fetchData, startPolling, stopPolling } = useTravelStore();
 
   useEffect(() => {
-    // Restore data from the database if the user is still logged in after a refresh
     if (isAuthenticated) {
       fetchData().catch(console.error);
+      startPolling();  // auto-refresh every 30s
+    } else {
+      stopPolling();   // clean up when logged out
     }
-  }, [isAuthenticated, fetchData]);
+    return () => {
+      // cleanup on unmount
+      stopPolling();
+    };
+  }, [isAuthenticated]);
 
   return (
     <Switch>
        {/* Public Routes */}
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/forgot-password" component={ForgotPassword} />
 
       {/* Shared Routes - both admin and client */}
-      <Route path="/" component={() => (
+      <Route path="/">
         <ProtectedRoute>
           <Layout><Dashboard /></Layout>
         </ProtectedRoute>
-      )} />
-      <Route path="/profile" component={() => (
+      </Route>
+      <Route path="/profile">
         <ProtectedRoute>
           <Layout><Profile /></Layout>
         </ProtectedRoute>
-      )} />
-      <Route path="/settings" component={() => (
+      </Route>
+      <Route path="/settings">
         <ProtectedRoute allowedRoles={['admin']}>
           <Layout><Settings /></Layout>
         </ProtectedRoute>
-      )} />
+      </Route>
 
       {/* Client-only Routes */}
-      <Route path="/my-bookings" component={() => (
+      <Route path="/my-bookings">
         <ProtectedRoute allowedRoles={['client']}>
           <Layout><ClientBookings /></Layout>
         </ProtectedRoute>
-      )} />
+      </Route>
 
       {/* Admin-only Routes */}
-      <Route path="/bookings" component={() => (
+      <Route path="/bookings">
         <ProtectedRoute allowedRoles={['admin']}>
           <Layout><Bookings /></Layout>
         </ProtectedRoute>
-      )} />
-      <Route path="/itineraries" component={() => (
+      </Route>
+      <Route path="/itineraries">
         <ProtectedRoute allowedRoles={['admin', 'client']}>
           <Layout><Itineraries /></Layout>
         </ProtectedRoute>
-      )} />
-      <Route path="/travelers" component={() => (
+      </Route>
+      <Route path="/travelers">
         <ProtectedRoute allowedRoles={['admin']}>
           <Layout><Travelers /></Layout>
         </ProtectedRoute>
-      )} />
-      <Route path="/expenses" component={() => (
+      </Route>
+      <Route path="/expenses">
         <ProtectedRoute allowedRoles={['admin']}>
           <Layout><Expenses /></Layout>
         </ProtectedRoute>
-      )} />
-      <Route path="/reports" component={() => (
+      </Route>
+      <Route path="/reports">
         <ProtectedRoute allowedRoles={['admin']}>
           <Layout><Reports /></Layout>
         </ProtectedRoute>
-      )} />
-      <Route path="/approvals" component={() => (
-        <ProtectedRoute allowedRoles={['admin']}>
+      </Route>
+      <Route path="/approvals">
+        <ProtectedRoute allowedRoles={['admin', 'client']}>
           <Layout><Approvals /></Layout>
         </ProtectedRoute>
-      )} />
+      </Route>
 
       {/* 404 */}
       <Route path={"/404"} component={NotFound} />
